@@ -148,14 +148,14 @@ def get_midi_ground_truth_data(filenames):
 
 def get_wav_midi_data(filenames):
     X_filenames = []
-    numSlices_list = []
+    Y_numSlices = []
     Y_list = []
     for wav_file, midi_file in filenames:
         X_filenames.append(wav_file)
         Y_i = preprocess_midi_truth(midi_file)
-        Y_numSlices_list.append(Y[i].shape[1])
+        Y_numSlices.append(Y_i.shape[1])
         Y_list.append(Y_i[:,:numSlices])
-    X = preprocess_wav_file(X_filenames, Y_numSlices_list)
+    X = preprocess_wav_file(X_filenames, Y_numSlices)
     Y = np.concatenate(Y_list, axis=1)
     Y = [Y[i] for i in range(Y.shape[0])]
     return X, Y
