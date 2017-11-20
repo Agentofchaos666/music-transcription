@@ -159,7 +159,7 @@ def main():
     print '===> Setting up data...'
     data_set_up_start_time = time.time()                                                                        
     x_stream = StringIO(file_io.read_file_to_string(arguments['X_file']))
-    y_stream = StringIO(file_io.read_file_to_string(arguments['X_file']))
+    y_stream = StringIO(file_io.read_file_to_string(arguments['Y_file']))
     X = np.load(x_stream)
     Y = np.load(y_stream)
     numSlicesForTrain = int(X.shape[0] * 0.8)
