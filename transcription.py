@@ -30,7 +30,7 @@ NUM_EPOCHS = 100
 BATCH_SIZE = 64
 TRAINING_DIRS = ['mozart'] 
 
-def plot_prediction(prediction, target,name):
+def plot_prediction(prediction, target):
     prediction = np.squeeze(prediction)
     target = [np.squeeze(arr) for arr in target]
     print prediction.shape

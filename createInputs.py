@@ -30,7 +30,7 @@ def preprocess_wav_file(files, Y_numSlices):
     # returns 1 example (downsampled, cqt, normalized)
     np_array_list = []
     for filename in files:
-    	print filename
+    	#print filename
         y, sr = librosa.load(filename, sr = None, duration=DURATION)
         y_downsample = librosa.resample(y, orig_sr=sr, target_sr=DOWNSAMPLED_SR)
         CQT_result = librosa.cqt(y_downsample, sr=DOWNSAMPLED_SR, hop_length=HOP_LENGTH, n_bins=NUM_BINS, bins_per_octave=BINS_PER_OCTAVE)
@@ -82,14 +82,12 @@ def get_wav_midi_data(filenames):
 
 
 def main():    
-	X, Y = get_wav_midi_data(getFileList())
+	filenames = getFileList()
+	print "Number of Songs: {}".format(len(filenames))
+	X, Y = get_wav_midi_data(filenames)
+	print "Number of Training Examples: {}".format(X.shape[0])
 	np.save("X_input", X)
 	np.save("Y_input", Y)
-	X_loaded = np.load("X_input.npy")
-	Y_loaded = np.load("Y_input.npy")
-
-	print np.array_equal(X,X_loaded)
-	print np.array_equal(Y, Y_loaded)
 
 
 if __name__ == "__main__":
