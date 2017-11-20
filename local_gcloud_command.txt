@@ -1,0 +1,1 @@
+gcloud ml-engine local train --module-name trainer.transcription --package-path ./trainer -- --X-file X_input.npy --Y-file Y_input.npy
