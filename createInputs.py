@@ -1,0 +1,96 @@
+import librosa
+import matplotlib.pyplot as plt
+import librosa.display
+import numpy as np
+from groundtruth import NoteEvents
+import midi
+import glob
+
+DURATION = 60
+DOWNSAMPLED_SR = 16000
+HOP_LENGTH = 512
+NUM_OCTAVES = 7
+BINS_PER_OCTAVE = 36
+NUM_BINS = NUM_OCTAVES * BINS_PER_OCTAVE
+WINDOW_SIZE = 7
+TRAINING_DIRS = ['mozart'] 
+
+def getFileList():
+    file_list = []
+    for train_dir in TRAINING_DIRS:
+        midi_files = set([f[:-4] for f in glob.glob(train_dir+'/*.mid')])
+        wav_files = set([f[:-4] for f in glob.glob(train_dir+'/*.wav')])
+        train_files = midi_files & wav_files
+        # print train_files
+        for filename in train_files:
+            file_list.append((filename+'.wav',filename+'.mid'))
+    return file_list
+
+def preprocess_wav_file(files, Y_numSlices):
+    # returns 1 example (downsampled, cqt, normalized)
+    np_array_list = []
+    for filename in files:
+    	print filename
+        y, sr = librosa.load(filename, sr = None, duration=DURATION)
+        y_downsample = librosa.resample(y, orig_sr=sr, target_sr=DOWNSAMPLED_SR)
+        CQT_result = librosa.cqt(y_downsample, sr=DOWNSAMPLED_SR, hop_length=HOP_LENGTH, n_bins=NUM_BINS, bins_per_octave=BINS_PER_OCTAVE)
+        CQT_result = np.absolute(CQT_result)
+        np_array_list.append(CQT_result)
+
+    combined = np.concatenate(np_array_list, axis = 1)
+    mean = np.mean(combined, axis = 1, keepdims =True)
+    std = np.std(combined, axis = 1, keepdims=True)
+    for i in range(len(np_array_list)):
+        np_array_list[i] = np.divide(np.subtract(np_array_list[i], mean), std)
+
+    frame_windows_list = []
+    numSlices_list = []
+    for i in range(len(np_array_list)):
+        CQT_result = np_array_list[i]
+        paddedX = np.zeros((CQT_result.shape[0], CQT_result.shape[1] + WINDOW_SIZE - 1), dtype=float)
+        pad_amount = WINDOW_SIZE / 2
+        paddedX[:, pad_amount:-pad_amount] = CQT_result
+        frame_windows = np.array([paddedX[:, j:j+WINDOW_SIZE] for j in range(CQT_result.shape[1])])
+        frame_windows = np.expand_dims(frame_windows, axis=3)
+        numSlices = min(frame_windows.shape[0],Y_numSlices[i])
+        numSlices_list.append(numSlices)
+        frame_windows_list.append(frame_windows[:numSlices])
+    return np.concatenate(frame_windows_list, axis=0), numSlices_list
+
+def preprocess_midi_truth(filename):
+    # returns 1 ground truth binary vector (size 88)
+    pattern = midi.read_midifile(file(filename))
+    events = NoteEvents(pattern)
+    truth = events.get_ground_truth(31.25, DURATION) # (88, numSlices)
+    return truth
+
+def get_wav_midi_data(filenames):
+    X_filenames = []
+    Y_numSlices = []
+    Y_list = []
+    for wav_file, midi_file in filenames:
+        X_filenames.append(wav_file)
+        Y_i = preprocess_midi_truth(midi_file)
+        Y_numSlices.append(Y_i.shape[1])
+        Y_list.append(Y_i)
+
+    X, numSlices = preprocess_wav_file(X_filenames, Y_numSlices)
+    Y_list = [Y_list[i][:,:numSlices[i]] for i in range(len(Y_list))]
+    Y = np.concatenate(Y_list, axis=1)
+    Y = [Y[i] for i in range(Y.shape[0])]
+    return X, Y
+
+
+def main():    
+	X, Y = get_wav_midi_data(getFileList())
+	np.save("X_input", X)
+	np.save("Y_input", Y)
+	X_loaded = np.load("X_input.npy")
+	Y_loaded = np.load("Y_input.npy")
+
+	print np.array_equal(X,X_loaded)
+	print np.array_equal(Y, Y_loaded)
+
+
+if __name__ == "__main__":
+	main()
