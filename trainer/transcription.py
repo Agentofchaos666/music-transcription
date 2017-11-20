@@ -161,7 +161,18 @@ def main():
     y_stream = file_io.FileIO(arguments['Y_file'], mode='r')
     X = np.load(x_stream)
     Y = np.load(y_stream)
-    Y = [Y[i] for i in range(Y.shape[0])]
+    numSlicesForTrain = int(X.shape[0] * 0.8)
+    
+    X_train = X[:numSlicesForTrain]
+    Y_train = Y[:, :numSlicesForTrain]
+    Y_train = [Y_train[i] for i in range(Y_train.shape[0])] # list of 88 things of shape (numSliceForTrain,)
+    print '===> TRAIN DIMENSIONS:', X_train.shape, '|', len(Y_train), Y_train[0].shape
+
+    X_test = X[numSlicesForTrain:]
+    Y_test = Y[:, numSlicesForTrain:]
+    Y_test = [Y_test[i] for i in range(Y_test.shape[0])] # list of 88 things of shape (numSliceForTrain,)
+    print '===> TEST DIMENSIONS:', X_test.shape, '|', len(Y_test), Y_test[0].shape
+
     print '===> Finished setting up data:', time.time() - data_set_up_start_time 
 
     model = ModelBuilder(input_shape=(252, 7, 1), 
@@ -169,7 +180,7 @@ def main():
                          kernel_size_tuples=[(25,5), (5,3)], 
                          pool_size=(3,1),
                          num_hidden_units=[200, 200],
-                         dropout_rate=0.1)
+                         dropout_rate=0.3)
 
     lossHistory = LossHistory()
     metrics = Metrics()
@@ -178,15 +189,15 @@ def main():
     compile_model_start_time = time.time()
     model.compile(optimizer=sgd, loss='hinge', metrics=['accuracy'])
     print '===> Finished compiling the model:', time.time() - compile_model_start_time
-    
-    model.validation_data = (X, Y)
+
+    model.validation_data = (X_test, Y_test)
 
     # EXPERIMENTING WITH PLOTTING
     # val_predict = np.asarray(model.predict(X)).round()
     # val_target = Y
     # plot_prediction(val_predict[:, :626], [x[:626] for x in val_target])
     model.after_compile_start_time = time.time()
-    model.fit(X, Y, validation_data=(X, Y), epochs=NUM_EPOCHS, batch_size=BATCH_SIZE, verbose=0, callbacks=[lossHistory, metrics])
+    model.fit(X_train, Y_train, validation_data=(X_test, Y_test), epochs=NUM_EPOCHS, batch_size=BATCH_SIZE, verbose=0, callbacks=[lossHistory, metrics])
 
 
 if __name__ == "__main__":
