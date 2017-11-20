@@ -183,29 +183,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()                         num_hidden_units=[200, 200],
-                         dropout_rate=0.1)
-    # model.summary()
-    print '===> Setting up data...'
-    X, Y = get_wav_midi_data(getFileList())
-    print '===> Finished setting up data.'
-    print '========================================'
-    lossHistory = LossHistory()
-    metrics = Metrics()
-    sgd = SGD(lr=LEARNING_RATE, momentum=MOMENTUM_RATE)
-    print '===> Compiling the model...'
-    model.compile(optimizer=sgd, loss='hinge', metrics=['accuracy'])
-    print '===> Finished compiling the model.'
-    print '========================================'
-    model.validation_data = (X, Y)
-
-    # EXPERIMENTING WITH PLOTTING
-    val_predict = np.asarray(model.predict(X)).round()
-    val_target = Y
-    plot_prediction(val_predict[:, :626], [x[:626] for x in val_target])
-
-    # model.fit(X, Y, validation_data=(X, Y), epochs=NUM_EPOCHS, batch_size=BATCH_SIZE, verbose=0, callbacks=[lossHistory, metrics])
-
-
-if __name__ == "__main__":
     main()
