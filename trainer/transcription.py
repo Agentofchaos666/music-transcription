@@ -67,9 +67,9 @@ class Metrics(Callback):
         if epoch == 0:
             time_since_training_began = time.time()
             print 'Time since training began:', time_since_training_began - self.train_begin_time
-            print 'EPOCH [', epoch, ']:',
+            print 'EPOCH [', epoch, ']:'
 
-        print 'EPOCH [', epoch, ']:',
+        print 'EPOCH [', epoch, ']:'
         self.start_time = time.time()
 
     def on_epoch_end(self, epoch, logs={}):
@@ -187,7 +187,7 @@ def main():
     val_target = Y
     # plot_prediction(val_predict[:, :626], [x[:626] for x in val_target])
     model.fit_start_time = time.time()
-    model.fit(X, Y, validation_data=(X, Y), epochs=NUM_EPOCHS, batch_size=BATCH_SIZE, verbose=0, callbacks=[lossHistory, metrics])
+    model.fit(X, Y, validation_data=(X, Y), epochs=NUM_EPOCHS, batch_size=BATCH_SIZE, verbose=1, callbacks=[lossHistory, metrics])
 
 
 if __name__ == "__main__":
