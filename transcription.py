@@ -45,7 +45,7 @@ def preprocess_wav_file(files, Y_numSlices):
     # returns 1 example (downsampled, cqt, normalized)
     np_array_list = []
     for filename in files:
-        y, sr = librosa.load(filename, sr = None, duration=10)
+        y, sr = librosa.load(filename, sr = None, duration=DURATION)
         y_downsample = librosa.resample(y, orig_sr=sr, target_sr=DOWNSAMPLED_SR)
         CQT_result = librosa.cqt(y_downsample, sr=DOWNSAMPLED_SR, hop_length=HOP_LENGTH, n_bins=NUM_BINS, bins_per_octave=BINS_PER_OCTAVE)
         CQT_result = np.absolute(CQT_result)
