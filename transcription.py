@@ -94,14 +94,16 @@ def get_wav_midi_data(filenames):
     Y = [Y[i] for i in range(Y.shape[0])]
     return X, Y
 
-def plot_prediction(prediction, target):
+def plot_prediction(prediction, target,name):
+    prediction = np.squeeze(prediction)
+    target = [np.squeeze(arr) for arr in target]
     print prediction.shape
     print len(target), target[0].shape
     plt.matshow(prediction)
-    plt.savefig('prediction.jpg')
+    plt.savefig('prediction.png')
     plt.clf()
     plt.matshow(target)
-    plt.savefig('target.jpg')
+    plt.savefig('target.png')
 
 class LossHistory(Callback):
     def on_train_begin(self,logs={}):
@@ -138,7 +140,7 @@ class Metrics(Callback):
         val_predict = val_predict.round()
         val_target = self.model.validation_data[1]
         # print 'PREDICT_SHAPE:', val_predict.shape, '| TARGET_SHAPE:', len(val_target), val_target[0].shape
-        # plot_prediction(val_predict[:, :626, [x[:626] for x in val_target])
+        plot_prediction(val_predict[:, :626], [x[:626] for x in val_target])
         for i in range(val_predict.shape[0]):
             # pred = np.random.uniform(size=(3750,1)).round() 
             # target = np.random.uniform(size=(3750,1)).round()
@@ -157,7 +159,7 @@ class Metrics(Callback):
             precision_scores.append(val_precision)
             self.val_recalls.append(val_recall)
             self.val_precisions.append(val_precision)
-            # print '== NOTE {}: VAL_F1: {} | VAL_PRECISION: {} | VAL_RECALL {}'.format(i, val_f1, val_precision, val_recall)
+            print '== NOTE {}: VAL_F1: {} | VAL_PRECISION: {} | VAL_RECALL {}'.format(i, val_f1, val_precision, val_recall)
         self.val_f1s.extend(f1_scores)
         print 'F1 SCORE =', sum(f1_scores) / float(len(f1_scores)), 
         print '| RECALL =', sum(recall_scores) / float(len(recall_scores)),
@@ -179,7 +181,7 @@ def ModelBuilder(input_shape, num_filters, kernel_size_tuples, pool_size, num_hi
 
     x = Flatten()(x)
     x = Dense(num_hidden_units[0], activation='sigmoid')(x)
-    x = Dropout(dropout_rate)(x)
+    # x = Dropout(dropout_rate)(x)
     x = Dense(num_hidden_units[1], activation='sigmoid')(x)
     x = Dropout(dropout_rate)(x)
     outputs = []
@@ -223,7 +225,7 @@ def main():
     val_target = Y
     plot_prediction(val_predict[:, :626], [x[:626] for x in val_target])
 
-    # model.fit(X, Y, validation_data=(X, Y), epochs=NUM_EPOCHS, batch_size=BATCH_SIZE, verbose=0, callbacks=[lossHistory, metrics])
+    model.fit(X, Y, validation_data=(X, Y), epochs=NUM_EPOCHS, batch_size=BATCH_SIZE, verbose=0, callbacks=[lossHistory, metrics])
 
 
 if __name__ == "__main__":
