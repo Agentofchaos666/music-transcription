@@ -56,8 +56,8 @@ class LossHistory(Callback):
 
 class Metrics(Callback):
     def on_train_begin(self, logs={}):
-        self.train_begin_time = time.time() - self.model.fit_start_time
-        print 'Time since fit() was called:', self.train_begin_time
+        self.train_begin_time = time.time()
+        print 'Time since fit() was called:', self.train_begin_time - self.model.fit_start_time
         print '===> BEGINNING TO TRAIN...'
         self.val_f1s = []
         self.val_recalls = []
@@ -65,14 +65,16 @@ class Metrics(Callback):
 
     def on_epoch_begin(self, epoch, logs={}):
         if epoch == 0:
-            print 'Time since training began:', time.time() - self.train_begin_time
+            time_since_training_began = time.time()
+            print 'Time since training began:', time_since_training_began - self.train_begin_time
+            print 'EPOCH [', epoch, ']:',
 
         print 'EPOCH [', epoch, ']:',
         self.start_time = time.time()
 
     def on_epoch_end(self, epoch, logs={}):
-        end_time = time.time() - self.start_time
-        print 'Train:', end_time, 
+        end_time = time.time()
+        print 'Train:', end_time - self.start_time, 
         acc_scores = []
         f1_scores = []
         recall_scores = []
@@ -98,8 +100,8 @@ class Metrics(Callback):
             self.val_precisions.append(val_precision)
             # print '== NOTE {}: F1: {} | Precision: {} | Recall: {}'.format(i, val_f1, val_precision, val_recall)
         self.val_f1s.extend(f1_scores)
-        inference_time = time.time() - end_time
-        print '| Inference:', inference_time
+        inference_time = time.time()
+        print '| Inference:', inference_time - end_time
         print '===> F1:', sum(f1_scores) / float(len(f1_scores)), 
         print '| Recall:', sum(recall_scores) / float(len(recall_scores)),
         print '| Precision:', sum(precision_scores) / float(len(precision_scores)),
