@@ -57,7 +57,7 @@ class LossHistory(Callback):
 class Metrics(Callback):
     def on_train_begin(self, logs={}):
         self.train_begin_time = time.time()
-        print 'Time since fit() was called:', self.train_begin_time - self.model.fit_start_time
+        print 'Time since fit() was called:', self.train_begin_time - self.model.after_compile_start_time
         print '===> BEGINNING TO TRAIN...'
         self.val_f1s = []
         self.val_recalls = []
@@ -66,10 +66,9 @@ class Metrics(Callback):
     def on_epoch_begin(self, epoch, logs={}):
         if epoch == 0:
             time_since_training_began = time.time()
-            print 'Time since training began:', time_since_training_began - self.train_begin_time
-            print 'EPOCH [', epoch, ']:',
+            print '(in epoch_begin) Time since training began:', time_since_training_began - self.train_begin_time
 
-        print 'EPOCH [', epoch, ']:',
+        print 'EPOCH [', epoch, ']:'
         self.start_time = time.time()
 
     def on_epoch_end(self, epoch, logs={}):
@@ -179,14 +178,14 @@ def main():
     compile_model_start_time = time.time()
     model.compile(optimizer=sgd, loss='hinge', metrics=['accuracy'])
     print '===> Finished compiling the model:', time.time() - compile_model_start_time
-
+    
     model.validation_data = (X, Y)
 
     # EXPERIMENTING WITH PLOTTING
-    val_predict = np.asarray(model.predict(X)).round()
-    val_target = Y
+    # val_predict = np.asarray(model.predict(X)).round()
+    # val_target = Y
     # plot_prediction(val_predict[:, :626], [x[:626] for x in val_target])
-    model.fit_start_time = time.time()
+    model.after_compile_start_time = time.time()
     model.fit(X, Y, validation_data=(X, Y), epochs=NUM_EPOCHS, batch_size=BATCH_SIZE, verbose=0, callbacks=[lossHistory, metrics])
 
 
