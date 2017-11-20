@@ -3,15 +3,18 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-
+# Comverts MIDI file pattern to representation of notes events in absolute time
 class NoteEvents:
-    def __init__(self, pattern):
+    def __init__(self, pattern, start_on_note=True):
         self._event_list = []
         self._note_time_list = []
         pattern.make_ticks_abs()
         self.pattern = pattern
         self.ticks_per_beat = pattern.resolution
         self.numNotes = 88
+        # offset between note index and MIDI note number
+        self.noteOffset = 9
+        self.start_on_note = start_on_note
         self._parse_events()
 
     def _parse_events(self):
@@ -43,8 +46,10 @@ class NoteEvents:
                 microseconds_per_beat = event.get_mpqn()
                 microseconds_per_tick = float(microseconds_per_beat) / self.ticks_per_beat
         start_time = self._note_time_list[0][1]
-        for i, tup in enumerate(self._note_time_list):
-            self._note_time_list[i] = (tup[0],tup[1]-start_time)
+
+        if self.start_on_note:
+            for i, tup in enumerate(self._note_time_list):
+                self._note_time_list[i] = (tup[0],tup[1]-start_time)
         self._last_event_time = self._note_time_list[-1][1]
 
     def _note_off(self, note_event):
@@ -66,15 +71,13 @@ class NoteEvents:
         prev_time = 0
         for note, curr_time in self._note_time_list:
             if prev_time != curr_time:
-                # index of first slice at or after prev_time
                 prev_time_slice = self.time_to_slice(prev_time, slices_per_second)
-                # index of slice corresponding to current time (or next slice if time between slices)
                 curr_time_slice = self.time_to_slice(curr_time, slices_per_second)
                 #make all slices in [prev_time, curr_time) equal to current template
                 ground_truth[:,prev_time_slice:curr_time_slice] = template.repeat(curr_time_slice - prev_time_slice, axis=1)
             if type(note) == midi.events.EndOfTrackEvent:
                 break
-            pitch_index = note.get_pitch() - 9
+            pitch_index = note.get_pitch() - self.noteOffset
             if pitch_index >= 0 and pitch_index < self.numNotes:
                 if self._note_off(note):
                     template[pitch_index] = 0
@@ -87,20 +90,9 @@ class NoteEvents:
 
 
 
-
-
-
-
-
-
-# pattern = midi.read_midifile(file('deb_clai.mid'))
-# events = NoteEvents(pattern)
-# truth = events.get_ground_truth(31.25, 10)
-# print truth.shape
-# print truth.shape
-# x = events._note_time_list[100]
-# slice_index = events.time_to_slice(x[1], 31.25)
-# print x
-# print truth[x[0].get_pitch() - 9,slice_index-1:slice_index+2]
-# plt.matshow(truth)
-# plt.show()
+if __name__ == '__main__':
+    pattern = midi.read_midifile(file('chpn_a_flat.mid'))
+    events = NoteEvents(pattern)
+    truth = events.get_ground_truth(31.25, 15)
+    plt.matshow(truth)
+    plt.show()
