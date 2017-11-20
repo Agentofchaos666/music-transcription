@@ -162,10 +162,6 @@ def main():
     val_predict = np.asarray(model.predict(X)).round()
     val_target = Y
     plot_prediction(val_predict[:, :626], [x[:626] for x in val_target])
-<<<<<<< HEAD
-=======
-
->>>>>>> cea1ea7f924f880287c1badf9877c39c75ede08c
     model.fit(X, Y, validation_data=(X, Y), epochs=NUM_EPOCHS, batch_size=BATCH_SIZE, verbose=0, callbacks=[lossHistory, metrics])
 
 
