@@ -1,11 +1,6 @@
-import librosa
 import matplotlib.pyplot as plt
-import librosa.display
 import numpy as np
 from sklearn.metrics import confusion_matrix, f1_score, precision_score, recall_score, accuracy_score
-from groundtruth import NoteEvents
-import midi
-import glob
 import time
 
 from keras.layers import Input, Dense, Activation, Flatten, Dropout
@@ -73,7 +68,7 @@ class Metrics(Callback):
 
     def on_epoch_end(self, epoch, logs={}):
         end_time = time.time()
-        print 'Train:', end_time - self.start_time, 
+        print '---> Train:', end_time - self.start_time, 
         acc_scores = []
         f1_scores = []
         recall_scores = []
@@ -83,7 +78,7 @@ class Metrics(Callback):
         val_predict = val_predict.round()
         val_target = self.model.validation_data[1]
         # print 'PREDICT_SHAPE:', val_predict.shape, '| TARGET_SHAPE:', len(val_target), val_target[0].shape
-        plot_prediction(val_predict[:, :626], [x[:626] for x in val_target])
+        # plot_prediction(val_predict[:, :626], [x[:626] for x in val_target])
         for i in range(val_predict.shape[0]):
             pred = val_predict[i] 
             target = val_target[i] 
@@ -101,7 +96,7 @@ class Metrics(Callback):
         self.val_f1s.extend(f1_scores)
         inference_time = time.time()
         print '| Inference:', inference_time - end_time
-        print '===> F1:', sum(f1_scores) / float(len(f1_scores)), 
+        print '---> F1:', sum(f1_scores) / float(len(f1_scores)), 
         print '| Recall:', sum(recall_scores) / float(len(recall_scores)),
         print '| Precision:', sum(precision_scores) / float(len(precision_scores)),
         print '| Acc:', sum(acc_scores) / float(len(acc_scores))
@@ -163,12 +158,12 @@ def main():
     Y = np.load(y_stream)
     numSlicesForTrain = int(X.shape[0] * 0.8)
     
-    X_train = X[:numSlicesForTrain]
+    X_train = X[:numSlicesForTrain] # X_train.shape = (numSlices, 252, 7, 1)
     Y_train = Y[:, :numSlicesForTrain]
     Y_train = [Y_train[i] for i in range(Y_train.shape[0])] # list of 88 things of shape (numSliceForTrain,)
     print '===> TRAIN DIMENSIONS:', X_train.shape, '|', len(Y_train), Y_train[0].shape
 
-    X_test = X[numSlicesForTrain:]
+    X_test = X[numSlicesForTrain:] # X_test.shape = (numSlices, 252, 7, 1)
     Y_test = Y[:, numSlicesForTrain:]
     Y_test = [Y_test[i] for i in range(Y_test.shape[0])] # list of 88 things of shape (numSliceForTrain,)
     print '===> TEST DIMENSIONS:', X_test.shape, '|', len(Y_test), Y_test[0].shape
@@ -187,7 +182,7 @@ def main():
     sgd = SGD(lr=LEARNING_RATE, momentum=MOMENTUM_RATE)
     print '===> Compiling the model...'
     compile_model_start_time = time.time()
-    model.compile(optimizer=sgd, loss='hinge', metrics=['accuracy'])
+    model.compile(optimizer=sgd, loss='binary_crossentropy', metrics=['accuracy'])
     print '===> Finished compiling the model:', time.time() - compile_model_start_time
 
     model.validation_data = (X_test, Y_test)
