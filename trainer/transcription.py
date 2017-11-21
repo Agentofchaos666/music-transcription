@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.metrics import confusion_matrix, f1_score, precision_score, recall_score, accuracy_score
 import time
+from StringIO import StringIO
 
 from keras.layers import Input, Dense, Activation, Flatten, Dropout
 from keras.layers import Convolution2D, AveragePooling2D, BatchNormalization, MaxPooling2D, ZeroPadding2D
@@ -29,14 +30,14 @@ NUM_EPOCHS = 100
 BATCH_SIZE = 64
 TRAINING_DIRS = [] 
 
-def plot_prediction(prediction, target):
-    prediction = np.squeeze(prediction) # print prediction.shape
-    target = [np.squeeze(arr) for arr in target] # print len(target), target[0].shape
-    plt.matshow(prediction)
-    plt.savefig('prediction.png')
-    plt.clf()
-    plt.matshow(target)
-    plt.savefig('target.png')
+# def plot_prediction(prediction, target):
+#     prediction = np.squeeze(prediction) # print prediction.shape
+#     target = [np.squeeze(arr) for arr in target] # print len(target), target[0].shape
+#     plt.matshow(prediction)
+#     plt.savefig('prediction.png')
+#     plt.clf()
+#     plt.matshow(target)
+#     plt.savefig('target.png')
 
 class LossHistory(Callback):
     def on_train_begin(self,logs={}):
@@ -145,15 +146,20 @@ def main():
       '--Y-file',
       help='GCS or local paths to training data',
       required=True
-    )                                                                                                       
+    )
+    parser.add_argument(
+      '--job-dir',
+      help='GCS location to write checkpoints and export models',
+      required=True
+    )                                                                                                   
     args = parser.parse_args()
     arguments = args.__dict__
     print arguments
     
     print '===> Setting up data...'
     data_set_up_start_time = time.time()                                                                        
-    x_stream = file_io.FileIO(arguments['X_file'], mode='r')
-    y_stream = file_io.FileIO(arguments['Y_file'], mode='r')
+    x_stream = StringIO(file_io.read_file_to_string(arguments['X_file']))
+    y_stream = StringIO(file_io.read_file_to_string(arguments['Y_file']))
     X = np.load(x_stream)
     Y = np.load(y_stream)
     numSlicesForTrain = int(X.shape[0] * 0.8)
@@ -175,7 +181,7 @@ def main():
                          kernel_size_tuples=[(25,5), (5,3)], 
                          pool_size=(3,1),
                          num_hidden_units=[200, 200],
-                         dropout_rate=0.3)
+                         dropout_rate=0.5)
 
     lossHistory = LossHistory()
     metrics = Metrics()
