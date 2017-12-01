@@ -17,6 +17,9 @@ from keras.utils import np_utils
 from keras import backend as K
 from keras.callbacks import Callback
 
+from tensorflow.python.lib.io import file_io
+import argparse
+
 DURATION = 60
 DOWNSAMPLED_SR = 16000
 HOP_LENGTH = 512
@@ -32,10 +35,8 @@ BATCH_SIZE = 64
 TRAINING_DIRS = [] 
 
 def plot_prediction(prediction, target):
-    prediction = np.squeeze(prediction)
-    target = [np.squeeze(arr) for arr in target]
-    print prediction.shape
-    print len(target), target[0].shape
+    prediction = np.squeeze(prediction) # print prediction.shape
+    target = [np.squeeze(arr) for arr in target] # print len(target), target[0].shape
     plt.matshow(prediction)
     plt.savefig('prediction.png')
     plt.clf()
@@ -55,13 +56,18 @@ class LossHistory(Callback):
 
 class Metrics(Callback):
     def on_train_begin(self, logs={}):
-        print 'Time since fit() was called:', time.time() - self.model.fit_start_time
+        self.train_begin_time = time.time() - self.model.fit_start_time
+        print 'Time since fit() was called:', self.train_begin_time
         print '===> BEGINNING TO TRAIN...'
         self.val_f1s = []
         self.val_recalls = []
         self.val_precisions =[]
 
     def on_epoch_begin(self, epoch, logs={}):
+        if epoch == 0:
+            time_since_training_began = time.time() - self.train_begin_time
+            print 'Time since training began:', time_since_training_began
+
         print 'EPOCH [', epoch, ']:',
         self.start_time = time.time()
 
@@ -134,19 +140,36 @@ def custom_loss_function(y_true, y_pred):
     
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+      '--X-file',
+      help='GCS or local paths to training data',
+      required=True
+    )
+    parser.add_argument(
+      '--Y-file',
+      help='GCS or local paths to training data',
+      required=True
+    )                                                                                                       
+    args = parser.parse_args()
+    arguments = args.__dict__
+    print arguments
+    
+    print '===> Setting up data...'
+    data_set_up_start_time = time.time()                                                                        
+    x_stream = file_io.FileIO(arguments['X_file'], mode='r')
+    y_stream = file_io.FileIO(arguments['Y_file'], mode='r')
+    X = np.load(x_stream)
+    Y = np.load(y_stream)
+    Y = [Y[i] for i in range(Y.shape[0])]
+    print '===> Finished setting up data:', time.time() - data_set_up_start_time 
+
     model = ModelBuilder(input_shape=(252, 7, 1), 
                          num_filters=[50, 50], 
                          kernel_size_tuples=[(25,5), (5,3)], 
                          pool_size=(3,1),
                          num_hidden_units=[200, 200],
                          dropout_rate=0.1)
-    # model.summary()
-    print '===> Setting up data...'
-    data_set_up_start_time = time.time()
-    X = np.load("X_input.npy")
-    Y = np.load("Y_input.npy")
-    Y = [Y[i] for i in range(Y.shape[0])]
-    print '===> Finished setting up data:', time.time() - data_set_up_start_time 
 
     lossHistory = LossHistory()
     metrics = Metrics()
