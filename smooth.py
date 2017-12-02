@@ -15,7 +15,7 @@ def generateHMMMatrix(mat):
     for eventList in mat:
         HMM_list = []
         for event in eventList:
-            HMM_list.append((event[0], len(event[1])==0 ))
+            HMM_list.append((event[0], len(event[1])!=0 ))
         HMM_mat.append(HMM_list)
     return HMM_mat
 
@@ -41,11 +41,11 @@ HMM_H = generateHMMMatrix(H_mat)
 HMM_E = generateHMMMatrix(E_mat)
 print HMM_H[0][:10]
 model.train(HMM_H, HMM_E)
-# for key, prob in model.tCounts.iteritems():
-#     print key, ':', prob[((1.0/8,), True)]
-# print '====================='
-# for key, prob in model.emissionProbs.iteritems():
-#     print key, ':', max(prob)
+for key, prob in model.tCounts.iteritems():
+    print key, ':', prob[((1.0/8,), True)]
+print '====================='
+for key, prob in model.emissionProbs.iteritems():
+    print key, ':', max(prob)
 # inference
 # generates predicted H
 # generated = model.predict(E_mat[0], tempos[0], BUCKETS)
