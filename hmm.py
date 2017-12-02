@@ -8,7 +8,7 @@ class HMM():
         self.transCounts = defaultdict(lambda: [laplace] * numBuckets)
         self.emissionCounts = defaultdict(lambda: [laplace] * numBuckets)
 
-    def train(self, H, M):
+    def train(self, H, E):
         numExamples = len(H)
         for i in range(numExamples):
             h = H[i]
@@ -33,17 +33,17 @@ class HMM():
 
 
 # TESTING STUFF
-model = HMM(11, 4, 1)
-H = [[i] * 20 for i in range(10)]
-E = [[i+1] * 20 for i in range(10)]
-for i in range(10):
-    print 'H:', H[i]
-    print 'E:', E[i]
-    print '====================='
-model.train(H, E)
-for key, prob in model.transProbs.iteritems():
-    print key, ':', prob
-print '====================='
-for key, prob in model.emissionProbs.iteritems():
-    print key, ':', prob
+# model = HMM(11, 4, 1)
+# H = [[i] * 20 for i in range(10)]
+# E = [[i+1] * 20 for i in range(10)]
+# for i in range(10):
+#     print 'H:', H[i]
+#     print 'E:', E[i]
+#     print '====================='
+# model.train(H, E)
+# for key, prob in model.transProbs.iteritems():
+#     print key, ':', prob
+# print '====================='
+# for key, prob in model.emissionProbs.iteritems():
+#     print key, ':', prob
 
