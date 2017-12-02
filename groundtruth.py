@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 class NoteEvents:
     def __init__(self, pattern, note_tracks=None, start_on_note=True):
         self._event_list = []
-        self._note_time_list = []
+        self.note_time_list = []
         pattern.make_ticks_abs()
         self.pattern = pattern
         self.ticks_per_beat = pattern.resolution
@@ -53,7 +53,7 @@ class NoteEvents:
             tick_diff = event.tick - prev_tick
             curr_time = prev_time + (tick_diff * microseconds_per_tick)
             if type(event) != midi.events.SetTempoEvent:
-                self._note_time_list.append((event, curr_time))
+                self.note_time_list.append((event, curr_time))
                 prev_time = curr_time
                 prev_tick = event.tick
             else:
@@ -61,12 +61,12 @@ class NoteEvents:
                 prev_tick = event.tick
                 microseconds_per_beat = event.get_mpqn()
                 microseconds_per_tick = float(microseconds_per_beat) / self.ticks_per_beat
-        start_time = self._note_time_list[0][1]
+        start_time = self.note_time_list[0][1]
 
         if self.start_on_note:
-            for i, tup in enumerate(self._note_time_list):
-                self._note_time_list[i] = (tup[0],tup[1]-start_time)
-        self._last_event_time = self._note_time_list[-1][1]
+            for i, tup in enumerate(self.note_time_list):
+                self.note_time_list[i] = (tup[0],tup[1]-start_time)
+        self._last_event_time = self.note_time_list[-1][1]
 
     def _note_off(self, note_event):
         return ((type(note_event) == midi.events.NoteOnEvent) and (note_event.get_velocity() == 0)) \
@@ -85,7 +85,7 @@ class NoteEvents:
         ground_truth = np.zeros(self.numNotes * number_slices).reshape(self.numNotes, number_slices)
         template = np.zeros(self.numNotes).reshape(self.numNotes,1)
         prev_time = 0
-        for note, curr_time in self._note_time_list:
+        for note, curr_time in self.note_time_list:
             if prev_time != curr_time:
                 prev_time_slice = self.time_to_slice(prev_time, slices_per_second)
                 curr_time_slice = self.time_to_slice(curr_time, slices_per_second)
