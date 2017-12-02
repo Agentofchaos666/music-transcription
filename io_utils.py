@@ -21,22 +21,23 @@ def generateTrainData(dirs, buckets):
     H_mat = []
     E_mat = []
     tempos = []
+    sigs = []
     filenames = getInputFiles(dirs)
     assert(len(filenames) != 0)
     # bucketfn(tick, resolution) --> bucket
     bucketfn = generateTickToBucket(buckets, linearMetric)
     for f in filenames:
         print f
-        H, E, tempo = processMIDI(f, bucketfn)
+        H, E, tempo, timeSig, keySig = processMIDI(f, bucketfn)
+        sigs.append((timeSig, keySig))
         if tempo == None: continue
         H_mat.append(H)
         E_mat.append(E)
         tempos.append(tempo)
-        break
-    return H_mat, E_mat, tempos, filenames
+    return H_mat, E_mat, tempos, filenames, sigs
 
 def eventListToMIDI(eventList, buckets, ticks_per_beat, 
-    tempo_bpm, filename, output_dir=OUTPUT_DIR):
+    tempo_bpm, filename, output_dir=OUTPUT_DIR, timeSig=None, keySig=None):
     '''
     Input: event list [(bucket, note/rest, volume)], buckets,
             ticks_per_beat, tempo (bpm)
@@ -50,6 +51,14 @@ def eventListToMIDI(eventList, buckets, ticks_per_beat,
     tempoEvent = midi.events.SetTempoEvent()
     tempoEvent.set_bpm(tempo_bpm)
     track.append(tempoEvent)
+    print timeSig
+    print timeSig.tick
+    if timeSig:
+        timeSig.tick = 0
+        track.append(timeSig)
+    if keySig:
+        keySig.tick = 0
+        track.append(keySig)
     pattern.append(track)
     tick = 0
     for bucket, notes, volume in eventList:
@@ -129,6 +138,8 @@ def generateTickToBucket(buckets, metric):
 def processMIDI(f, bucketfn):
     pattern = midi.read_midifile(file(f))
     tempoInfo = getTempoInfo(pattern)
+    timeSignatureEvent = getFirstEvent(pattern, midi.events.TimeSignatureEvent)
+    keySignatureEvent = getFirstEvent(pattern, midi.events.KeySignatureEvent)
     print tempoInfo
     if not isValidTempoInfo(tempoInfo):
         return (None, None, None)
@@ -152,7 +163,7 @@ def processMIDI(f, bucketfn):
     print E[:5]
     print len(H)
     print H[:5]
-    return H, E, tempo
+    return H, E, tempo, timeSignatureEvent, keySignatureEvent
     # to absolute time with given tempo
     # process list to handle simultaneous notes/have rests/
     # be properly consecutive
@@ -163,6 +174,15 @@ def processMIDI(f, bucketfn):
     # process list to handle simultaneous notes/have rests/
     # be properly consecutive
     # convert to H list
+
+def getFirstEvent(pattern, eventType):
+    for track in pattern:
+        for event in track:
+            if type(event) == eventType:
+                return event
+    return None
+
+
 
 def timeToETickList(timeList, tempo_bpm, ticks_per_beat):
     # Input: list [(midi_event, absolute_time)], tempo_bpm, ticks_per_beat
@@ -214,13 +234,6 @@ def tickToEventList(tickList, bucketfn, ticks_per_beat):
     return result
 
 
-
-
-
-
-
-
-
 def mpqn_to_bpm(mpqn):
     return 6e7 / mpqn
 
@@ -242,13 +255,15 @@ def isValidTempoInfo(tempoInfo):
 
 
 if __name__ == '__main__':
-    H_mat, E_mat, tempos, filenames = generateTrainData(TEST_DIRS, TEST_BUCKETS)
+    H_mat, E_mat, tempos, filenames, signatures = generateTrainData(TEST_DIRS, TEST_BUCKETS)
     print tempos, filenames
     print len(H_mat[0])
     print len(E_mat[0])
     print E_mat[0][:10]
     for i in range(len(E_mat)):
-        eventListToMIDI(E_mat[i], TEST_BUCKETS, 480, tempos[i], 'test.mid')
+        timeSig, keySig = signatures[i]
+        eventListToMIDI(E_mat[i], TEST_BUCKETS, 480, tempos[i], \
+            filenames[i][:-4]+'_E.mid', timeSig=timeSig, keySig=keySig)
     # print bf(480, 480)
     # print bf(240, 480)
     # print bf(200, 480)
