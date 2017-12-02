@@ -15,7 +15,7 @@ from keras.models import Model
 from keras import layers
 from keras.utils import np_utils
 from keras import backend as K
-from keras.callbacks import Callback
+from keras.callbacks import Callback, ModelCheckpoint
 
 from tensorflow.python.lib.io import file_io
 import argparse
@@ -33,6 +33,7 @@ MOMENTUM_RATE = 0.9
 NUM_EPOCHS = 100
 BATCH_SIZE = 64
 TRAINING_DIRS = [] 
+BUCKET_NAME = "output/" #CHANGE TO BUCKET NAME
 
 def plot_prediction(prediction, target):
     prediction = np.squeeze(prediction) # print prediction.shape
@@ -54,6 +55,11 @@ class LossHistory(Callback):
         # print '=====> FINISHED PRINTING LOGS.'
         self.losses.append(logs.get('loss'))
 
+def storeCloud(filename):
+    with file_io.FileIO(filename, mode='r') as input_f:
+        with file_io.FileIO(BUCKET_NAME + filename, mode='w+') as output_f:
+                output_f.write(input_f.read())
+
 class Metrics(Callback):
     def on_train_begin(self, logs={}):
         self.train_begin_time = time.time() - self.model.fit_start_time
@@ -62,21 +68,24 @@ class Metrics(Callback):
         self.val_f1s = []
         self.val_recalls = []
         self.val_precisions =[]
-        self.filename = "transcription_output.txt"
-        with open(self.filename, 'w') as output:
-            output.write("")   #reset file
+        self.error_file = "error_output.txt"
+        self.model_file = "model.h5"
+        self.target_file = "target.npy"
+        self.predict_file = "predict.npy"
+        with open(self.error_file, 'w') as error_output:
+            error_output.write("")   #reset file
 
     def on_epoch_begin(self, epoch, logs={}):
         if epoch == 0:
             time_since_training_began = time.time() - self.train_begin_time
             print 'Time since training began:', time_since_training_began
 
-        print 'EPOCH [', epoch, ']:',
+        print 'EPOCH [', epoch, ']:'
         self.start_time = time.time()
 
     def on_epoch_end(self, epoch, logs={}):
         end_time = time.time() - self.start_time
-        print 'Train:', end_time, 
+        print 'Train:', end_time
         acc_scores = []
         f1_scores = []
         recall_scores = []
@@ -86,8 +95,18 @@ class Metrics(Callback):
         val_predict = val_predict.round()
         val_target = self.model.validation_data[1]
         # print 'PREDICT_SHAPE:', val_predict.shape, '| TARGET_SHAPE:', len(val_target), val_target[0].shape
-        output = open(self.filename, 'a')
-        output.write('----EPOCH {}----\n'.format(epoch))
+        if epoch == 0:
+            np.save(self.target_file, val_target)
+            storeCloud(self.target_file)
+
+        elif epoch % 2 == 0:
+            self.model.save(self.model_file)
+            storeCloud(self.model_file)
+            np.save(self.predict_file, val_predict)
+            storeCloud(self.predict_file)
+
+        error_output = open(self.error_file, 'a')
+        error_output.write('----EPOCH {}----\n'.format(epoch))
         plot_prediction(val_predict[:, :626], [x[:626] for x in val_target])
         for i in range(val_predict.shape[0]):
             pred = val_predict[i] 
@@ -102,16 +121,24 @@ class Metrics(Callback):
             precision_scores.append(val_precision)
             self.val_recalls.append(val_recall)
             self.val_precisions.append(val_precision)
-            print '== NOTE {}: VAL_F1: {} | VAL_PRECISION: {} | VAL_RECALL {}'.format(i, val_f1, val_precision, val_recall)
-            # print '== NOTE {}: F1: {} | Precision: {} | Recall: {}'.format(i, val_f1, val_precision, val_recall)
-            
+            print '== NOTE {}: VAL_F1: {} | VAL_PRECISION: {} | VAL_RECALL {}\n'.format(i, val_f1, val_precision, val_recall)
+            error_output.write('== NOTE {}: VAL_F1: {} | VAL_PRECISION: {} | VAL_RECALL {}\n'.format(i, val_f1, val_precision, val_recall))
+
         self.val_f1s.extend(f1_scores)
         inference_time = time.time() - end_time
-        print '| Inference:', inference_time
-        print '===> F1:', sum(f1_scores) / float(len(f1_scores)), 
-        print '| Recall:', sum(recall_scores) / float(len(recall_scores)),
-        print '| Precision:', sum(precision_scores) / float(len(precision_scores)),
-        print '| Acc:', sum(acc_scores) / float(len(acc_scores))
+        f1 = sum(f1_scores) / float(len(f1_scores))
+        recall = sum(recall_scores) / float(len(recall_scores))
+        precision = sum(precision_scores) / float(len(precision_scores))
+        acc = sum(acc_scores) / float(len(acc_scores))
+
+        print 'F1 SCORE =', f1, 
+        print '| RECALL =', recall,
+        print '| PRECISION =', precision,
+        print '| ACC =', acc
+        error_output.write('F1 SCORE = {} | RECALL = {} | PRECISION = {} |  ACCURACY = {}\n'.format(f1, recall, precision, acc))
+        error_output.close()
+        storeCloud(self.error_file)
+            # print '== NOTE {}: F1: {} | Precision: {} | Recall: {}'.format(i, val_f1, val_precision, val_recall)
         return
 
 def ModelBuilder(input_shape, num_filters, kernel_size_tuples, pool_size, num_hidden_units, dropout_rate):
