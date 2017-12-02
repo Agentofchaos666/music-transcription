@@ -28,12 +28,12 @@ class HMM():
         possible_tuples = list(itertools.product(self.buckets, repeat=self.n))
         for i in range(len(possible_tuples)):
             possible_tuples[i] = tuple(possible_tuples[i])
-        print possible_tuples
+        # print possible_tuples
         trans_sums = {key : sum([self.tCounts[key][bucket] for bucket in self.buckets]) for key in possible_tuples}
-        self.transProbs = {key : [float(self.tCounts[key][bucket])/trans_sums[key] for bucket in self.buckets] for key in possible_tuples}
+        self.transProbs = {key : {bucket : float(self.tCounts[key][bucket])/trans_sums[key] for bucket in self.buckets} for key in possible_tuples}
 
         emission_sums = {key : sum([self.eCounts[key][bucket] for bucket in self.buckets]) for key in self.buckets}
-        self.emissionProbs = {key : [float(self.eCounts[key][bucket])/emission_sums[key] for bucket in self.buckets] for key in self.buckets}
+        self.emissionProbs = {key : {bucket : float(self.eCounts[key][bucket])/emission_sums[key] for bucket in self.buckets} for key in self.buckets}
 
     def predict(self, M):
         pass
