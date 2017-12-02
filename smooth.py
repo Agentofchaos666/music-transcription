@@ -37,14 +37,16 @@ def possibleHMMBuckets(buckets):
 # tempos is list of median tempos for reconstuction purposes
 # signatures [(timeSig, keySig)] midiEvents for each file
 H_mat, E_mat, tempos, filenames, signatures = io_utils.generateTrainData(DIRS, BUCKETS)
-model = HMM(possibleHMMBuckets(BUCKETS), nGramLength=3, laplace=1)
+model = HMM(possibleHMMBuckets(BUCKETS), nGramLength=2, laplace=1)
 HMM_H = generateHMMMatrix(H_mat)
 HMM_E = generateHMMMatrix(E_mat)
 # print HMM_H[0][:10]
 model.train(HMM_H, HMM_E)
-for key, prob in model.transProbs.iteritems():
-    max_bucket = max(prob, key=prob.get)
-    print key , ':', max_bucket, prob[max_bucket]
+predictions = model.predict_bigram(HMM_E)
+
+# for key, prob in model.transProbs.iteritems():
+#     max_bucket = max(prob, key=prob.get)
+#     print key , ':', max_bucket, prob[max_bucket]
 # print '====================='
 # for key, prob in model.emissionProbs.iteritems():
 #     print key, ':', max(prob)
