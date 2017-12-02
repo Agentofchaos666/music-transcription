@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 # Comverts MIDI file pattern to representation of notes events in absolute time
 class NoteEvents:
-    def __init__(self, pattern, start_on_note=True):
+    def __init__(self, pattern, note_tracks=None, start_on_note=True):
         self._event_list = []
         self._note_time_list = []
         pattern.make_ticks_abs()
@@ -14,18 +14,34 @@ class NoteEvents:
         self.numNotes = 88
         # offset between note index and MIDI note number
         self.noteOffset = 9
+        # list of track names to include notes from
+        self.note_tracks = note_tracks
+        self.names = self._name_tracks()
         self.start_on_note = start_on_note
         self._parse_events()
+
+    def _name_tracks(self):
+        names = [None] * len(self.pattern)
+        for i in range(len(self.pattern)):
+            for event in self.pattern[i]:
+                if type(event) == midi.events.TrackNameEvent:
+                    names[i] = event.text
+                break
+        return names
 
     def _parse_events(self):
         for i in range(len(self.pattern)):
             for event in self.pattern[i]:
-                if type(event) in (midi.events.SetTempoEvent, midi.events.NoteOnEvent, midi.events.NoteOffEvent):
+                if type(event) in (midi.events.NoteOnEvent, midi.events.NoteOffEvent):
+                    if self.note_tracks == None or self.names[i] in self.note_tracks:
+                        self._event_list.append(event)
+                elif type(event) == midi.events.SetTempoEvent:
                     self._event_list.append(event)
-                if type(event) == midi.events.EndOfTrackEvent and event.tick != 0:
+                elif type(event) == midi.events.EndOfTrackEvent and event.tick != 0:
                     self._event_list.append(event)
         self._event_list = sorted(self._event_list, key=lambda x: x.tick)
         self._event_list_timed()
+
 
     def _event_list_timed(self):
         assert(type(self._event_list[0]) == midi.events.SetTempoEvent)
