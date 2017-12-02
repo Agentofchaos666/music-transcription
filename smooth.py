@@ -1,7 +1,8 @@
 from hmm import HMM
 import io_utils
 
-DIRS = ['debussy', 'bach', 'beeth']
+# DIRS = ['debussy', 'bach', 'beeth']
+DIRS = ['mozart', 'mendelssohn']
 # buckets are floats with optional params ('d': dotted, 't': triplet)
 BUCKETS = [(1.0/16, 'd'), (1.0/16, 't'), (1.0/16,),
             (1.0/8, 'd'), (1.0/8, 't'), (1.0/8,),
@@ -39,10 +40,11 @@ H_mat, E_mat, tempos, filenames, signatures = io_utils.generateTrainData(DIRS, B
 model = HMM(possibleHMMBuckets(BUCKETS), nGramLength=3, laplace=1)
 HMM_H = generateHMMMatrix(H_mat)
 HMM_E = generateHMMMatrix(E_mat)
-print HMM_H[0][:10]
+# print HMM_H[0][:10]
 model.train(HMM_H, HMM_E)
-# for key, prob in model.tCounts.iteritems():
-#     print key, ':', prob[((1.0/8,), True)]
+for key, prob in model.transProbs.iteritems():
+    max_bucket = max(prob, key=prob.get)
+    print key , ':', max_bucket, prob[max_bucket]
 # print '====================='
 # for key, prob in model.emissionProbs.iteritems():
 #     print key, ':', max(prob)
