@@ -62,6 +62,9 @@ class Metrics(Callback):
         self.val_f1s = []
         self.val_recalls = []
         self.val_precisions =[]
+        self.filename = "transcription_output.txt"
+        with open(self.filename, 'w') as output:
+            output.write("")   #reset file
 
     def on_epoch_begin(self, epoch, logs={}):
         print 'EPOCH [', epoch, ']:',
@@ -76,6 +79,8 @@ class Metrics(Callback):
         val_predict = val_predict.round()
         val_target = self.model.validation_data[1]
         # print 'PREDICT_SHAPE:', val_predict.shape, '| TARGET_SHAPE:', len(val_target), val_target[0].shape
+        output = open(self.filename, 'a')
+        output.write('----EPOCH {}----\n'.format(epoch))
         plot_prediction(val_predict[:, :626], [x[:626] for x in val_target])
         for i in range(val_predict.shape[0]):
             # pred = np.random.uniform(size=(3750,1)).round() 
@@ -96,11 +101,19 @@ class Metrics(Callback):
             self.val_recalls.append(val_recall)
             self.val_precisions.append(val_precision)
             print '== NOTE {}: VAL_F1: {} | VAL_PRECISION: {} | VAL_RECALL {}'.format(i, val_f1, val_precision, val_recall)
+            output.write('\n== NOTE {}: VAL_F1: {} | VAL_PRECISION: {} | VAL_RECALL {}\n'.format(i, val_f1, val_precision, val_recall))
         self.val_f1s.extend(f1_scores)
-        print 'F1 SCORE =', sum(f1_scores) / float(len(f1_scores)), 
-        print '| RECALL =', sum(recall_scores) / float(len(recall_scores)),
-        print '| PRECISION =', sum(precision_scores) / float(len(precision_scores)),
-        print '| ACC =', sum(acc_scores) / float(len(acc_scores))
+        f1 = sum(f1_scores) / float(len(f1_scores))
+        recall = sum(recall_scores) / float(len(recall_scores))
+        precision = sum(precision_scores) / float(len(precision_scores))
+        acc = sum(acc_scores) / float(len(acc_scores))
+
+        print 'F1 SCORE =', f1, 
+        print '| RECALL =', recall,
+        print '| PRECISION =', precision,
+        print '| ACC =', acc
+        output.write('F1 SCORE = {} | RECALL = {} | PRECISION = {} |  ACCURACY = {}\n'.format(f1, recall, precision, acc))
+        output.close()
         return
 
 def ModelBuilder(input_shape, num_filters, kernel_size_tuples, pool_size, num_hidden_units, dropout_rate):
@@ -157,11 +170,14 @@ def main():
     print '===> Finished compiling the model.'
     print '========================================'
     model.validation_data = (X, Y)
+    print "check 1"
 
     # EXPERIMENTING WITH PLOTTING
     val_predict = np.asarray(model.predict(X)).round()
+    print "check 2"
     val_target = Y
     plot_prediction(val_predict[:, :626], [x[:626] for x in val_target])
+    print "check 3"
     model.fit(X, Y, validation_data=(X, Y), epochs=NUM_EPOCHS, batch_size=BATCH_SIZE, verbose=0, callbacks=[lossHistory, metrics])
 
 
