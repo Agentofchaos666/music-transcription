@@ -99,7 +99,7 @@ class Metrics(Callback):
             np.save(self.target_file, val_target)
             storeCloud(self.target_file)
 
-        elif epoch % 2 == 0:
+        elif epoch % 10 == 0:
             self.model.save(self.model_file)
             storeCloud(self.model_file)
             np.save(self.predict_file, val_predict)
