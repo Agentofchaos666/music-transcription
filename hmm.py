@@ -1,7 +1,8 @@
 from collections import defaultdict
+import itertools
 
 class HMM():
-    def __init__(self, buckets, nGramLength=2, laplace=0):
+    def __init__(self, buckets, nGramLength=2, laplace=1):
         self.numBuckets = len(buckets) 
         self.buckets = buckets
         self.n = nGramLength - 1 # number of things to condition on
@@ -20,10 +21,14 @@ class HMM():
                     to_condition_on = tuple(self.starts[j:j+self.n] + h[:j])
                 else:
                     to_condition_on = tuple(h[j-self.n:j])
+                # print h[j], to_condition_on
                 self.tCounts[to_condition_on][h[j]] += 1
                 self.eCounts[h[j]][e[j]] += 1
 
-        possible_tuples = [(a, b, c) for a in self.buckets for b in self.buckets for c in self.buckets]
+        possible_tuples = list(itertools.product(self.buckets, repeat=self.n))
+        for i in range(len(possible_tuples)):
+            possible_tuples[i] = tuple(possible_tuples[i])
+        print possible_tuples
         trans_sums = {key : sum([self.tCounts[key][bucket] for bucket in self.buckets]) for key in possible_tuples}
         self.transProbs = {key : [float(self.tCounts[key][bucket])/trans_sums[key] for bucket in self.buckets] for key in possible_tuples}
 

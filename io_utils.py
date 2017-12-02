@@ -140,7 +140,7 @@ def processMIDI(f, bucketfn):
     tempoInfo = getTempoInfo(pattern)
     timeSignatureEvent = getFirstEvent(pattern, midi.events.TimeSignatureEvent)
     keySignatureEvent = getFirstEvent(pattern, midi.events.KeySignatureEvent)
-    print tempoInfo
+    # print tempoInfo
     if not isValidTempoInfo(tempoInfo):
         return (None, None, None)
     tempo = tempoInfo[2]
@@ -159,10 +159,10 @@ def processMIDI(f, bucketfn):
     # print tickList_H[:10]
     E = tickToEventList(tickList_E, bucketfn, ticks_per_beat)
     H = tickToEventList(tickList_H, bucketfn, ticks_per_beat)
-    print len(E)
-    print E[:5]
-    print len(H)
-    print H[:5]
+    # print len(E)
+    # print E[:5]
+    # print len(H)
+    # print H[:5]
     return H, E, tempo, timeSignatureEvent, keySignatureEvent
     # to absolute time with given tempo
     # process list to handle simultaneous notes/have rests/
