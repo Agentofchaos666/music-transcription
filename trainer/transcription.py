@@ -1,3 +1,6 @@
+
+import matplotlib
+matplotlib.use('agg')
 import matplotlib.pyplot as plt
 import numpy as np
 import random
@@ -221,7 +224,7 @@ def main():
     x_stream = StringIO(file_io.read_file_to_string(arguments['X_file']))
     y_stream = StringIO(file_io.read_file_to_string(arguments['Y_file']))
     global JOB_DIR, IDENTITY
-    JOB_DIR = "./" + arguments['job_dir']
+    JOB_DIR = arguments['job_dir']
     IDENTITY = arguments['id']
     DROPOUT_RATE = arguments['dropout_rate']
     X = np.load(x_stream)
