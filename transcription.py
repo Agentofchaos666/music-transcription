@@ -33,7 +33,8 @@ MOMENTUM_RATE = 0.9
 NUM_EPOCHS = 100
 BATCH_SIZE = 64
 TRAINING_DIRS = [] 
-BUCKET_NAME = "output/" #CHANGE TO BUCKET NAME
+OUTPUT_FREQ = 1
+BUCKET_NAME = "output/" # CHANGE TO BUCKET NAME
 
 def plot_prediction(prediction, target):
     prediction = np.squeeze(prediction) # print prediction.shape
@@ -68,10 +69,10 @@ class Metrics(Callback):
         self.val_f1s = []
         self.val_recalls = []
         self.val_precisions =[]
-        self.error_file = "error_output.txt"
-        self.model_file = "model.h5"
-        self.target_file = "target.npy"
-        self.predict_file = "predict.npy"
+        self.error_file = "error_output_{}.txt".format(IDENTITY)
+        self.model_file = "model_{}.h5".format(IDENTITY)
+        self.target_file = "target_{}.npy".format(IDENTITY)
+        self.predict_file = "predict_{}.npy".format(IDENTITY)
         with open(self.error_file, 'w') as error_output:
             error_output.write("")   #reset file
 
@@ -99,7 +100,7 @@ class Metrics(Callback):
             np.save(self.target_file, val_target)
             storeCloud(self.target_file)
 
-        elif epoch % 10 == 0:
+        elif epoch % OUTPUT_FREQ == 0:
             self.model.save(self.model_file)
             storeCloud(self.model_file)
             np.save(self.predict_file, val_predict)
@@ -184,7 +185,20 @@ def main():
       '--Y-file',
       help='GCS or local paths to training data',
       required=True
-    )                                                                                                       
+    )
+
+    parser.add_argument(
+        '--id',
+        help='Output file id',
+        type=str,
+        default="test"
+    )         
+    parser.add_argument(
+        '--dropout_rate',
+        help= "Dropout rate",
+        type=float,
+        default=0.3
+    )                                                                                              
     args = parser.parse_args()
     arguments = args.__dict__
     print arguments
@@ -193,6 +207,9 @@ def main():
     data_set_up_start_time = time.time()                                                                        
     x_stream = file_io.FileIO(arguments['X_file'], mode='r')
     y_stream = file_io.FileIO(arguments['Y_file'], mode='r')
+    global IDENTITY
+    IDENTITY = file_io.FileIO(arguments['id'], mode='r')
+    DROPOUT_RATE = file_io.FileIO(arguments['dropout_rate'], mode='r')
     X = np.load(x_stream)
     Y = np.load(y_stream)
     Y = [Y[i] for i in range(Y.shape[0])]
@@ -203,7 +220,7 @@ def main():
                          kernel_size_tuples=[(25,5), (5,3)], 
                          pool_size=(3,1),
                          num_hidden_units=[200, 200],
-                         dropout_rate=0.1)
+                         dropout_rate=DROPOUT_RATE)
 
     lossHistory = LossHistory()
     metrics = Metrics()

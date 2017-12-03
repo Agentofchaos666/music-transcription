@@ -1,8 +1,11 @@
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import numpy as np
+import random
+import os
 from sklearn.metrics import confusion_matrix, f1_score, precision_score, recall_score, accuracy_score
 import time
 from StringIO import StringIO
+
 
 from keras.layers import Input, Dense, Activation, Flatten, Dropout
 from keras.layers import Convolution2D, AveragePooling2D, BatchNormalization, MaxPooling2D, ZeroPadding2D
@@ -28,16 +31,26 @@ LEARNING_RATE = 0.1
 MOMENTUM_RATE = 0.9
 NUM_EPOCHS = 100
 BATCH_SIZE = 64
+OUTPUT_FREQ = 1
 TRAINING_DIRS = [] 
 
-# def plot_prediction(prediction, target):
-#     prediction = np.squeeze(prediction) # print prediction.shape
-#     target = [np.squeeze(arr) for arr in target] # print len(target), target[0].shape
-#     plt.matshow(prediction)
-#     plt.savefig('prediction.png')
-#     plt.clf()
-#     plt.matshow(target)
-#     plt.savefig('target.png')
+def plot_predictions(plotting_info):
+    for prediction, target, epoch, i in plotting_info:
+        suffix = '_' + str(epoch) + '_' + str(i) + '.png'
+        prediction = np.squeeze(prediction) # print prediction.shape
+        target = [np.squeeze(arr) for arr in target] # print len(target), target[0].shape
+        plt.subplot(2,1,1)
+        plt.matshow(prediction, fignum=False)
+        plt.subplot(2,1,2)
+        plt.matshow(target, fignum=False)
+        plt.savefig(JOB_DIR +'/comparison-plots/comparison' + suffix)
+
+def storeCloud(filename):
+    with file_io.FileIO(filename, mode='r') as input_f:
+        with file_io.FileIO(JOB_DIR + "/" + filename, mode='w+') as output_f:
+                output_f.write(input_f.read())
+    #if os.path.exists(filename):
+        #os.system("rm {}".format(filename))
 
 class LossHistory(Callback):
     def on_train_begin(self,logs={}):
@@ -58,12 +71,11 @@ class Metrics(Callback):
         self.val_f1s = []
         self.val_recalls = []
         self.val_precisions =[]
+        self.error_file = "error_output_{}.txt".format(IDENTITY)
+        with open(self.error_file, 'w') as error_output:
+            error_output.write("")   #reset file
 
     def on_epoch_begin(self, epoch, logs={}):
-        if epoch == 0:
-            time_since_training_began = time.time()
-            print '(in epoch_begin) Time since training began:', time_since_training_began - self.train_begin_time
-
         print 'EPOCH [', epoch, ']:'
         self.start_time = time.time()
 
@@ -79,7 +91,8 @@ class Metrics(Callback):
         val_predict = val_predict.round()
         val_target = self.model.validation_data[1]
         # print 'PREDICT_SHAPE:', val_predict.shape, '| TARGET_SHAPE:', len(val_target), val_target[0].shape
-        # plot_prediction(val_predict[:, :626], [x[:626] for x in val_target])
+        error_output = open(self.error_file, 'a')
+        error_output.write('----EPOCH {}----\n'.format(epoch))
         for i in range(val_predict.shape[0]):
             pred = val_predict[i] 
             target = val_target[i] 
@@ -94,14 +107,48 @@ class Metrics(Callback):
             self.val_recalls.append(val_recall)
             self.val_precisions.append(val_precision)
             # print '== NOTE {}: F1: {} | Precision: {} | Recall: {}'.format(i, val_f1, val_precision, val_recall)
+            #error_output.write('== NOTE {}: VAL_F1: {} | VAL_PRECISION: {} | VAL_RECALL {}\n'.format(i, val_f1, val_precision, val_recall))
         self.val_f1s.extend(f1_scores)
         inference_time = time.time()
-        print '| Inference:', inference_time - end_time
-        print '---> F1:', sum(f1_scores) / float(len(f1_scores)), 
-        print '| Recall:', sum(recall_scores) / float(len(recall_scores)),
-        print '| Precision:', sum(precision_scores) / float(len(precision_scores)),
-        print '| Acc:', sum(acc_scores) / float(len(acc_scores))
+        f1 = sum(f1_scores) / float(len(f1_scores))
+        recall = sum(recall_scores) / float(len(recall_scores))
+        precision = sum(precision_scores) / float(len(precision_scores))
+        acc = sum(acc_scores) / float(len(acc_scores))
+
+        print 'F1 SCORE =', f1, 
+        print '| RECALL =', recall,
+        print '| PRECISION =', precision,
+        print '| ACC =', acc
+        print '*********************** max f1 score =', max(f1_scores), '| idx =', f1_scores.index(max(f1_scores))
+        error_output.write('F1 SCORE = {} | RECALL = {} | PRECISION = {} |  ACCURACY = {}\n'.format(f1, recall, precision, acc))
+        error_output.write('*********************** max f1 score = {} | idx = {}\n'.format(max(f1_scores), f1_scores.index(max(f1_scores))))
+        error_output.close()
+        storeCloud(self.error_file)
+
+        max_idx_to_plot = val_target[0].shape[0]-627
+        indices_to_visualize = [0, min(f1_scores.index(max(f1_scores)), max_idx_to_plot)]
+        plot_predictions([(val_predict[:, i:i+626], [x[i:i+626] for x in val_target], epoch, i) for i in indices_to_visualize])
         return
+
+class Checkpoint(Callback):
+    def on_epoch_end(self, epoch, logs={}):
+        self.model_file = "model_{}.h5".format(IDENTITY)
+        self.target_file = "target_{}.npy".format(IDENTITY)
+        self.predict_file = "predict_{}.npy".format(IDENTITY)
+        val_predict = np.asarray(self.model.predict(self.model.validation_data[0]))
+        val_predict = val_predict.round()
+        val_target = self.model.validation_data[1]
+
+        if epoch == 0:
+            np.save(self.target_file, val_target)
+            storeCloud(self.target_file)
+
+        if epoch % OUTPUT_FREQ == 0:
+            self.model.save(self.model_file)
+            storeCloud(self.model_file)
+            np.save(self.predict_file, val_predict)
+            storeCloud(self.predict_file)
+
 
 def ModelBuilder(input_shape, num_filters, kernel_size_tuples, pool_size, num_hidden_units, dropout_rate):
     frame_input = Input(shape=input_shape)
@@ -151,7 +198,19 @@ def main():
       '--job-dir',
       help='GCS location to write checkpoints and export models',
       required=True
-    )                                                                                                   
+    )      
+    parser.add_argument(
+        '--id',
+        help='Output file id',
+        type=str,
+        default="test"
+    )         
+    parser.add_argument(
+        '--dropout_rate',
+        help= "Dropout rate",
+        type=float,
+        default=0.3
+    )                                                                                                            
     args = parser.parse_args()
     arguments = args.__dict__
     print arguments
@@ -160,6 +219,10 @@ def main():
     data_set_up_start_time = time.time()                                                                        
     x_stream = StringIO(file_io.read_file_to_string(arguments['X_file']))
     y_stream = StringIO(file_io.read_file_to_string(arguments['Y_file']))
+    global JOB_DIR, IDENTITY
+    JOB_DIR = arguments['job_dir']
+    IDENTITY = arguments['id']
+    DROPOUT_RATE = arguments['dropout_rate']
     X = np.load(x_stream)
     Y = np.load(y_stream)
     numSlicesForTrain = int(X.shape[0] * 0.8)
@@ -181,10 +244,11 @@ def main():
                          kernel_size_tuples=[(25,5), (5,3)], 
                          pool_size=(3,1),
                          num_hidden_units=[200, 200],
-                         dropout_rate=0.5)
+                         dropout_rate=DROPOUT_RATE)
 
     lossHistory = LossHistory()
     metrics = Metrics()
+    checkpoint = Checkpoint()
     sgd = SGD(lr=LEARNING_RATE, momentum=MOMENTUM_RATE)
     print '===> Compiling the model...'
     compile_model_start_time = time.time()
@@ -193,12 +257,13 @@ def main():
 
     model.validation_data = (X_test, Y_test)
 
-    # EXPERIMENTING WITH PLOTTING
-    # val_predict = np.asarray(model.predict(X)).round()
-    # val_target = Y
-    # plot_prediction(val_predict[:, :626], [x[:626] for x in val_target])
+    # TAKE THIS OUT!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    # X_train = X_train[:700, :,:,:]
+    # Y_train = [y[:700] for y in Y_train]
+    # print '===> ADJUSTED TRAIN DIMENSIONS:', X_train.shape, '|', len(Y_train), Y_train[0].shape  
+
     model.after_compile_start_time = time.time()
-    model.fit(X_train, Y_train, validation_data=(X_test, Y_test), epochs=NUM_EPOCHS, batch_size=BATCH_SIZE, verbose=0, callbacks=[lossHistory, metrics])
+    model.fit(X_train, Y_train, validation_data=model.validation_data, epochs=NUM_EPOCHS, batch_size=BATCH_SIZE, verbose=0, callbacks=[lossHistory, metrics,checkpoint])
 
 
 if __name__ == "__main__":
