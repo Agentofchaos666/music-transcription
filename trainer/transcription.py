@@ -1,3 +1,6 @@
+
+import matplotlib
+matplotlib.use('agg')
 import matplotlib.pyplot as plt
 import numpy as np
 import random
@@ -36,14 +39,15 @@ TRAINING_DIRS = []
 
 def plot_predictions(plotting_info):
     for prediction, target, epoch, i in plotting_info:
-        suffix = '_' + str(epoch) + '_' + str(i) + '.png'
+        suffix = '_' + str(epoch) + '_' + str(i) + '_' + IDENTITY + '.png'
         prediction = np.squeeze(prediction) # print prediction.shape
         target = [np.squeeze(arr) for arr in target] # print len(target), target[0].shape
         plt.subplot(2,1,1)
         plt.matshow(prediction, fignum=False)
         plt.subplot(2,1,2)
         plt.matshow(target, fignum=False)
-        plt.savefig(JOB_DIR +'/comparison-plots/comparison' + suffix)
+        plt.savefig('comparison' + suffix)
+        storeCloud('comparison' + suffix)
 
 def storeCloud(filename):
     with file_io.FileIO(filename, mode='r') as input_f:
@@ -206,7 +210,7 @@ def main():
         default="test"
     )         
     parser.add_argument(
-        '--dropout_rate',
+        '--dropout-rate',
         help= "Dropout rate",
         type=float,
         default=0.3
