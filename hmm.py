@@ -17,7 +17,7 @@ class HMM():
             e = E[i]
             numEvents = len(h) 
             for j in range(numEvents):
-                if j < self.n - 1:
+                if j < self.n:
                     to_condition_on = tuple(self.starts[j:j+self.n] + h[:j])
                 else:
                     to_condition_on = tuple(h[j-self.n:j])
@@ -28,6 +28,17 @@ class HMM():
         possible_tuples = list(itertools.product(self.buckets, repeat=self.n))
         for i in range(len(possible_tuples)):
             possible_tuples[i] = tuple(possible_tuples[i])
+        start_possible_tuples = []
+        for j in range(self.n):
+            if j < 1:
+                start_possible_tuples.append(tuple(self.starts[j:j+self.n]))
+            else:
+                start_possible_tuples.append(tuple(self.starts[j:j+self.n] + list(itertools.product(self.buckets, repeat=j))))
+
+        possible_tuples += start_possible_tuples
+        print start_possible_tuples
+        print '******************************************************'
+
         # print possible_tuples
         trans_sums = {key : sum([self.tCounts[key][bucket] for bucket in self.buckets]) for key in possible_tuples}
         self.transProbs = {key : {bucket : float(self.tCounts[key][bucket])/trans_sums[key] for bucket in self.buckets} for key in possible_tuples}
@@ -38,16 +49,17 @@ class HMM():
     def predict_bigram(self, E):
         predictions = []
 
-        for e in E: 
+        for j,e in enumerate(E): 
+            print j
             F = []
-            numEvents = len(E)
+            numEvents = len(e)
             for i in range(numEvents):
                 f = {}
                 for bucket in self.buckets:
-                    if i < self.n: 
-                        f[bucket] = self.transProbs[tuple(self.starts[0])][bucket] * self.emission_probs[bucket][e[i]]
+                    if i < self.n:
+                        f[bucket] = self.transProbs[(self.starts[0],)][bucket] * self.emissionProbs[bucket][e[i]]
                     else: 
-                        f[bucket] = sum([F[i-1][prev] * self.transProbs[tuple(prev)][bucket] * self.emission_probs[bucket][e[i]] for prev in self.buckets])
+                        f[bucket] = sum([F[i-1][prev] * self.transProbs[(prev,)][bucket] * self.emissionProbs[bucket][e[i]] for prev in self.buckets])
                 F.append(f)
             
             B = []
@@ -55,9 +67,9 @@ class HMM():
                 b = {}
                 for bucket in self.buckets:
                     if i == numEvents - 1:
-                        b[bucket] = 1. / self.numBuckets * self.emission_probs[bucket][e[i]]
+                        b[bucket] = 1. / self.numBuckets * self.emissionProbs[bucket][e[i]]
                     else:
-                        b[bucket] = sum([B[i+1][next_bucket] * self.transProbs[tuple(bucket)][next_bucket] * self.emission_probs[bucket][e[i]] for next_bucket in self.buckets])
+                        b[bucket] = sum([B[numEvents-2-i][next_bucket] * self.transProbs[(bucket,)][next_bucket] * self.emissionProbs[bucket][e[i]] for next_bucket in self.buckets])
                 B.append(b)
 
             S = [{bucket : F[i][bucket] * B[i][bucket] for bucket in self.buckets} for i in range(numEvents)]
@@ -67,7 +79,7 @@ class HMM():
 
         print E[0][:10]
         print '======================================'
-        print prediction[0][:10]
+        print predictions[0][:10]
 
         return predictions
 

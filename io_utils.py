@@ -25,7 +25,7 @@ def generateTrainData(dirs, buckets):
     filenames = getInputFiles(dirs)
     assert(len(filenames) != 0)
     # bucketfn(tick, resolution) --> bucket
-    bucketfn = generateTickToBucket(buckets, linearMetric)
+    bucketfn = generateTickToBucket(buckets, logMetric)
     for f in filenames:
         print f
         H, E, tempo, timeSig, keySig = processMIDI(f, bucketfn)
