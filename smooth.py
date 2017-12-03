@@ -1,8 +1,7 @@
 from hmm import HMM
 import io_utils
-import copy
 
-OUTPUT_DIR = 'smoothed_midi_2'
+OUTPUT_DIR = 'smoothed_midi_3'
 
 DIRS = ['debussy', 'mozart', 'beeth']
 #DIRS = ['mozart', 'mendelssohn']
@@ -13,26 +12,10 @@ BUCKETS = [(1.0/16, 'd'), (1.0/16, 't'), (1.0/16,),
             (1.0/2, 'd'), (1.0/2,),
             (1.0,)]
 
-
-def generateHMMMatrix(mat):
-    HMM_mat = []
-    for eventList in mat:
-        HMM_list = []
-        for event in eventList:
-            HMM_list.append((event[0], len(event[1])!=0 ))
-        HMM_mat.append(HMM_list)
-    return HMM_mat
-
-def incorporatePrediction(full_mat, pred_mat):
-    updated = copy.deepcopy(full_mat)
-    for i in range(len(full_mat)):
-        for j in range(len(full_mat[i])):
-            updated[i][j] = (pred_mat[i][j][0], updated[i][j][1], updated[i][j][2])
-    return updated
-
 def possibleHMMBuckets(buckets):
-    notes = [(tuple(bucket), True) for bucket in buckets]
-    rests = [(tuple(bucket), False) for bucket in buckets]
+    # returns list of ((bucket, bool)) for all possible combos
+    notes = [(bucket, True) for bucket in buckets]
+    rests = [(bucket, False) for bucket in buckets]
     return notes+rests
 
 # lists of lists, 1 list per file
@@ -43,8 +26,8 @@ def possibleHMMBuckets(buckets):
 # signatures [(timeSig, keySig)] midiEvents for each file
 H_mat, E_mat, tempos, filenames, signatures = io_utils.generateTrainData(DIRS, BUCKETS)
 model = HMM(possibleHMMBuckets(BUCKETS), nGramLength=2, laplace=20)
-HMM_H = generateHMMMatrix(H_mat)
-HMM_E = generateHMMMatrix(E_mat)
+HMM_H = io_utils.generateHMMMatrix(H_mat)
+HMM_E = io_utils.generateHMMMatrix(E_mat)
 # print HMM_H[0][:10]
 model.train(HMM_H, HMM_E)
 # print '====================='
@@ -53,7 +36,7 @@ model.train(HMM_H, HMM_E)
 #     print key , ':', max_bucket, prob[max_bucket]
 predictions = model.predict_bigram(HMM_E)
 
-smoothed_E = incorporatePrediction(E_mat, predictions)
+smoothed_E = io_utils.incorporatePrediction(E_mat, predictions)
 for i in range(len(smoothed_E)):
     timeSig, keySig = signatures[i]
     io_utils.eventListToMIDI(smoothed_E[i], BUCKETS, 480, tempos[i], \

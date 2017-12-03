@@ -3,6 +3,7 @@ import math
 import matplotlib.pyplot as plt
 from groundtruth import NoteEvents
 import glob
+import copy
 
 TEST_DIRS = ['debussy']
 # needs to be floats
@@ -13,9 +14,9 @@ TEST_BUCKETS = [[1.0/16, 'd'], [1.0/16, 't'], [1.0/16],
                 [1.0]]
 NOTE_TRACKS = ['Piano right']
 OUTPUT_DIR = 'smoothed_midi'
-ALLOWED_TEMPO_DIFF = 100
+ALLOWED_TEMPO_DIFF = 10
 
-def generateTrainData(dirs, buckets):
+def generateTrainData(dirs, buckets, allowed_tempo_diff=ALLOWED_TEMPO_DIFF):
     assert(len(buckets) != 0)
     assert(len(dirs) != 0)
     H_mat = []
@@ -26,15 +27,17 @@ def generateTrainData(dirs, buckets):
     assert(len(filenames) != 0)
     # bucketfn(tick, resolution) --> bucket
     bucketfn = generateTickToBucket(buckets, logMetric)
+    final_filenames = []
     for f in filenames:
         print f
-        H, E, tempo, timeSig, keySig = processMIDI(f, bucketfn)
-        sigs.append((timeSig, keySig))
+        H, E, tempo, timeSig, keySig = processMIDI(f, bucketfn, allowed_tempo_diff)
         if tempo == None: continue
+        final_filenames.append(f)
+        sigs.append((timeSig, keySig))
         H_mat.append(H)
         E_mat.append(E)
         tempos.append(tempo)
-    return H_mat, E_mat, tempos, filenames, sigs
+    return H_mat, E_mat, tempos, final_filenames, sigs
 
 def eventListToMIDI(eventList, buckets, ticks_per_beat, 
     tempo_bpm, filename, output_dir=OUTPUT_DIR, timeSig=None, keySig=None):
@@ -73,6 +76,29 @@ def eventListToMIDI(eventList, buckets, ticks_per_beat,
     track.make_ticks_rel()
     print track[:10]
     midi.write_midifile(output_dir+'/'+filename, pattern)
+
+def generateHMMMatrix(mat):
+    # Generates matrix formatted for HMM processing from event list
+    # Input: mat with mat[0] = [(bucket, note_list, volume), ...]
+    # Output: HMM_mat with HMM_mat[0] = [(bucket, note/rest (T/F)), ...]
+    HMM_mat = []
+    for eventList in mat:
+        HMM_list = []
+        for event in eventList:
+            HMM_list.append((event[0], len(event[1])!=0 ))
+        HMM_mat.append(HMM_list)
+    return HMM_mat
+
+def incorporatePrediction(full_mat, pred_mat):
+    # returns updated matrix that is full_mat with buckets replaced with buckets
+    # in pred_mat
+    # full_mat with full_mat[0] = [(bucket, note_list, volume), ...]
+    # pred_mat with pred_mat[0] = [(bucket, note/rest (T/F)), ...]
+    updated = copy.deepcopy(full_mat)
+    for i in range(len(full_mat)):
+        for j in range(len(full_mat[i])):
+            updated[i][j] = (pred_mat[i][j][0], updated[i][j][1], updated[i][j][2])
+    return updated
 
 
 def bucketToTicks(bucket, ticks_per_beat):
@@ -135,14 +161,14 @@ def generateTickToBucket(buckets, metric):
 
     return bucketfn
 
-def processMIDI(f, bucketfn):
+def processMIDI(f, bucketfn, allowed_tempo_diff):
     pattern = midi.read_midifile(file(f))
     tempoInfo = getTempoInfo(pattern)
     timeSignatureEvent = getFirstEvent(pattern, midi.events.TimeSignatureEvent)
     keySignatureEvent = getFirstEvent(pattern, midi.events.KeySignatureEvent)
     # print tempoInfo
-    if not isValidTempoInfo(tempoInfo):
-        return (None, None, None)
+    if not isValidTempoInfo(tempoInfo, allowed_tempo_diff):
+        return [None] * 5
     tempo = tempoInfo[2]
     ticks_per_beat = pattern.resolution
     # generate E list
@@ -250,8 +276,8 @@ def getTempoInfo(pattern):
     results = [tempos[0], tempos[length/4], tempos[length/2], tempos[3*length/4], tempos[-1]]
     return map(mpqn_to_bpm, reversed(results))
 
-def isValidTempoInfo(tempoInfo):
-    return tempoInfo[3] - tempoInfo[1] <= ALLOWED_TEMPO_DIFF
+def isValidTempoInfo(tempoInfo, allowed_tempo_diff):
+    return tempoInfo[3] - tempoInfo[1] <= allowed_tempo_diff
 
 
 if __name__ == '__main__':
