@@ -185,7 +185,7 @@ def main():
                          kernel_size_tuples=[(25,5), (5,3)], 
                          pool_size=(3,1),
                          num_hidden_units=[200, 200],
-                         dropout_rate=0.5)
+                         dropout_rate=0.3)
 
     lossHistory = LossHistory()
     metrics = Metrics()
