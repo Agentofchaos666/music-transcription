@@ -1,0 +1,21 @@
+GENERAL TO-DO LIST:
+- save model (name via command line argument)
+- run experiments w/ diff hyperparams
+- fix loss function
+- F1-score: ~60% 
+
+HYPERPARAMETERS TO TUNE:
+- dropout rate
+- window size
+
+EXPERIMENTS TO RUN: (stop early if only zero f1 score for first 3 epochs)
+- reg binary cross entropy loss, dropout = 0.2, num_hidden_units=[200, 200]
+- reg binary cross entropy loss, dropout = 0.3, num_hidden_units=[200, 200]
+- reg binary cross entropy loss, dropout = 0.4, num_hidden_units=[200, 200]
+- reg binary cross entropy loss, dropout = 0.5, num_hidden_units=[200, 200]
+
+- reg binary cross entropy loss, dropout = 0.2, num_hidden_units=[1000, 200]
+- reg binary cross entropy loss, dropout = 0.3, num_hidden_units=[1000, 200]
+- reg binary cross entropy loss, dropout = 0.4, num_hidden_units=[1000, 200]
+- reg binary cross entropy loss, dropout = 0.5, num_hidden_units=[1000, 200]
+
