@@ -51,7 +51,7 @@ class HMM():
 
         for e in E: 
             F = []
-            numEvents = len(E)
+            numEvents = len(e)
             for i in range(numEvents):
                 f = {}
                 for bucket in self.buckets:
