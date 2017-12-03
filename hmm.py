@@ -49,13 +49,14 @@ class HMM():
     def predict_bigram(self, E):
         predictions = []
 
-        for e in E: 
+        for j,e in enumerate(E): 
+            print j
             F = []
             numEvents = len(e)
             for i in range(numEvents):
                 f = {}
                 for bucket in self.buckets:
-                    if i < self.n: 
+                    if i < self.n:
                         f[bucket] = self.transProbs[(self.starts[0],)][bucket] * self.emissionProbs[bucket][e[i]]
                     else: 
                         f[bucket] = sum([F[i-1][prev] * self.transProbs[(prev,)][bucket] * self.emissionProbs[bucket][e[i]] for prev in self.buckets])
