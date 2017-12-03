@@ -1,8 +1,11 @@
 from hmm import HMM
 import io_utils
+import copy
 
-# DIRS = ['debussy', 'bach', 'beeth']
-DIRS = ['mozart', 'mendelssohn']
+OUTPUT_DIR = 'smoothed_midi_2'
+
+DIRS = ['debussy', 'mozart', 'beeth']
+#DIRS = ['mozart', 'mendelssohn']
 # buckets are floats with optional params ('d': dotted, 't': triplet)
 BUCKETS = [(1.0/16, 'd'), (1.0/16, 't'), (1.0/16,),
             (1.0/8, 'd'), (1.0/8, 't'), (1.0/8,),
@@ -21,9 +24,11 @@ def generateHMMMatrix(mat):
     return HMM_mat
 
 def incorporatePrediction(full_mat, pred_mat):
+    updated = copy.deepcopy(full_mat)
     for i in range(len(full_mat)):
-        for j in range(len(full_mat[0])):
-            full_mat[i][j][0] = pred_mat[i][j][0]
+        for j in range(len(full_mat[i])):
+            updated[i][j] = (pred_mat[i][j][0], updated[i][j][1], updated[i][j][2])
+    return updated
 
 def possibleHMMBuckets(buckets):
     notes = [(tuple(bucket), True) for bucket in buckets]
@@ -37,7 +42,7 @@ def possibleHMMBuckets(buckets):
 # tempos is list of median tempos for reconstuction purposes
 # signatures [(timeSig, keySig)] midiEvents for each file
 H_mat, E_mat, tempos, filenames, signatures = io_utils.generateTrainData(DIRS, BUCKETS)
-model = HMM(possibleHMMBuckets(BUCKETS), nGramLength=2, laplace=1)
+model = HMM(possibleHMMBuckets(BUCKETS), nGramLength=2, laplace=20)
 HMM_H = generateHMMMatrix(H_mat)
 HMM_E = generateHMMMatrix(E_mat)
 # print HMM_H[0][:10]
@@ -47,6 +52,19 @@ model.train(HMM_H, HMM_E)
 #     max_bucket = max(prob, key=prob.get)
 #     print key , ':', max_bucket, prob[max_bucket]
 predictions = model.predict_bigram(HMM_E)
+
+smoothed_E = incorporatePrediction(E_mat, predictions)
+for i in range(len(smoothed_E)):
+    timeSig, keySig = signatures[i]
+    io_utils.eventListToMIDI(smoothed_E[i], BUCKETS, 480, tempos[i], \
+            filenames[i][:-4]+'_E_smoothed.mid', output_dir=OUTPUT_DIR, \
+            timeSig=timeSig, keySig=keySig)
+    
+    io_utils.eventListToMIDI(E_mat[i], BUCKETS, 480, tempos[i], \
+        filenames[i][:-4]+'_E_orig.mid', output_dir=OUTPUT_DIR, \
+        timeSig=timeSig, keySig=keySig)
+
+
 
 # for key, prob in model.transProbs.iteritems():
 #     max_bucket = max(prob, key=prob.get)
