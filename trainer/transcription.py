@@ -1,5 +1,6 @@
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import numpy as np
+import random
 from sklearn.metrics import confusion_matrix, f1_score, precision_score, recall_score, accuracy_score
 import time
 from StringIO import StringIO
@@ -30,14 +31,16 @@ NUM_EPOCHS = 100
 BATCH_SIZE = 64
 TRAINING_DIRS = [] 
 
-# def plot_prediction(prediction, target):
-#     prediction = np.squeeze(prediction) # print prediction.shape
-#     target = [np.squeeze(arr) for arr in target] # print len(target), target[0].shape
-#     plt.matshow(prediction)
-#     plt.savefig('prediction.png')
-#     plt.clf()
-#     plt.matshow(target)
-#     plt.savefig('target.png')
+def plot_predictions(plotting_info):
+    for prediction, target, epoch, i in plotting_info:
+        suffix = '_' + str(epoch) + '_' + str(i) + '.png'
+        prediction = np.squeeze(prediction) # print prediction.shape
+        target = [np.squeeze(arr) for arr in target] # print len(target), target[0].shape
+        plt.subplot(2,1,1)
+        plt.matshow(prediction, fignum=False)
+        plt.subplot(2,1,2)
+        plt.matshow(target, fignum=False)
+        plt.savefig('comparison-plots/comparison' + suffix)
 
 class LossHistory(Callback):
     def on_train_begin(self,logs={}):
@@ -60,10 +63,6 @@ class Metrics(Callback):
         self.val_precisions =[]
 
     def on_epoch_begin(self, epoch, logs={}):
-        if epoch == 0:
-            time_since_training_began = time.time()
-            print '(in epoch_begin) Time since training began:', time_since_training_began - self.train_begin_time
-
         print 'EPOCH [', epoch, ']:'
         self.start_time = time.time()
 
@@ -79,7 +78,6 @@ class Metrics(Callback):
         val_predict = val_predict.round()
         val_target = self.model.validation_data[1]
         # print 'PREDICT_SHAPE:', val_predict.shape, '| TARGET_SHAPE:', len(val_target), val_target[0].shape
-        # plot_prediction(val_predict[:, :626], [x[:626] for x in val_target])
         for i in range(val_predict.shape[0]):
             pred = val_predict[i] 
             target = val_target[i] 
@@ -101,6 +99,12 @@ class Metrics(Callback):
         print '| Recall:', sum(recall_scores) / float(len(recall_scores)),
         print '| Precision:', sum(precision_scores) / float(len(precision_scores)),
         print '| Acc:', sum(acc_scores) / float(len(acc_scores))
+
+        print '*********************** max f1 score =', max(f1_scores), '| idx =', f1_scores.index(max(f1_scores))
+        max_idx_to_plot = val_target[0].shape[0]-627
+        indices_to_visualize = [0, min(f1_scores.index(max(f1_scores)), max_idx_to_plot)]
+        plot_predictions([(val_predict[:, i:i+626], [x[i:i+626] for x in val_target], epoch, i) for i in indices_to_visualize])
+
         return
 
 def ModelBuilder(input_shape, num_filters, kernel_size_tuples, pool_size, num_hidden_units, dropout_rate):
@@ -150,7 +154,7 @@ def main():
     parser.add_argument(
       '--job-dir',
       help='GCS location to write checkpoints and export models',
-      required=True
+      required=False
     )                                                                                                   
     args = parser.parse_args()
     arguments = args.__dict__
@@ -193,12 +197,13 @@ def main():
 
     model.validation_data = (X_test, Y_test)
 
-    # EXPERIMENTING WITH PLOTTING
-    # val_predict = np.asarray(model.predict(X)).round()
-    # val_target = Y
-    # plot_prediction(val_predict[:, :626], [x[:626] for x in val_target])
+    # TAKE THIS OUT!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    # X_train = X_train[:700, :,:,:]
+    # Y_train = [y[:700] for y in Y_train]
+    # print '===> ADJUSTED TRAIN DIMENSIONS:', X_train.shape, '|', len(Y_train), Y_train[0].shape  
+
     model.after_compile_start_time = time.time()
-    model.fit(X_train, Y_train, validation_data=(X_test, Y_test), epochs=NUM_EPOCHS, batch_size=BATCH_SIZE, verbose=0, callbacks=[lossHistory, metrics])
+    model.fit(X_train, Y_train, validation_data=model.validation_data, epochs=NUM_EPOCHS, batch_size=BATCH_SIZE, verbose=0, callbacks=[lossHistory, metrics])
 
 
 if __name__ == "__main__":
