@@ -64,7 +64,6 @@ def generateTempoErrorData(dirs, buckets, tempo_error_list, metric=squaredMetric
                            event list 0 with tempo off by 0%,
                            event list 0 with tempo off by 10%]
     '''
-    print 'Gerate tempo error data'
     assert(len(buckets) != 0)
     assert(len(dirs) != 0)
     H_mat = []
@@ -184,7 +183,7 @@ def generateTickToBucket(buckets, metric):
             note_proportions.append(bucket[0] * 4 * 2 / 3)
         elif bucket[1] == 'd':
             note_proportions.append(bucket[0] * 4 * 3 / 2)
-    print note_proportions
+    # print note_proportions
     min_length_index = min(range(len(note_proportions)), key=lambda x: note_proportions[x])
 	
     def bucketfn(tick, resolution):
@@ -265,7 +264,7 @@ def timeToETickList(timeList, tempo_bpm, ticks_per_beat):
     # Will not modify midi_event tick length
     tempo = bpm_to_mpqn(tempo_bpm)
     ms_per_tick = tempo / ticks_per_beat
-    print 'ms_per_tick', ms_per_tick
+    #print 'ms_per_tick', ms_per_tick
     tickList = [(event, ms / ms_per_tick) for event, ms in timeList]
     return tickList
 
