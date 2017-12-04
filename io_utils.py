@@ -16,6 +16,22 @@ NOTE_TRACKS = ['Piano right']
 OUTPUT_DIR = 'smoothed_midi'
 ALLOWED_TEMPO_DIFF = 10
 
+def linearMetric(t1, t2):
+    return abs(t2 - t1)
+
+def squaredMetric(t1, t2):
+    return (t2 - t1) ** 2
+
+def logMetric(t1, t2):
+    t1 = float(t1)
+    t2 = float(t2)
+    return abs(math.log(t2) - math.log(t1))
+
+def squaredLogMetric(t1, t2):
+    t1 = float(t1)
+    t2 = float(t2)
+    return (math.log(t2) - math.log(t1)) ** 2
+
 def generateTrainData(dirs, buckets, allowed_tempo_diff=ALLOWED_TEMPO_DIFF, metric=logMetric):
     assert(len(buckets) != 0)
     assert(len(dirs) != 0)
@@ -153,22 +169,6 @@ def getInputFiles(dirs):
             files.append(f)
     return files
 
-def linearMetric(t1, t2):
-    return abs(t2 - t1)
-
-def squaredMetric(t1, t2):
-    return (t2 - t1) ** 2
-
-def logMetric(t1, t2):
-    t1 = float(t1)
-    t2 = float(t2)
-    return abs(math.log(t2) - math.log(t1))
-
-def squaredLogMetric(t1, t2):
-    t1 = float(t1)
-    t2 = float(t2)
-    return (math.log(t2) - math.log(t1)) ** 2
-
 def generateTickToBucket(buckets, metric):
     # proportion of resolution actually corresponding to each bucket
     # [1/4] --> 1/4 * 4 bc 1 quarter note = resolution ticks
@@ -185,6 +185,7 @@ def generateTickToBucket(buckets, metric):
         elif bucket[1] == 'd':
             note_proportions.append(bucket[0] * 4 * 3 / 2)
     print note_proportions
+    min_length_index = min(range(len(note_proportions)), key=lambda x: note_proportions[x])
 	
     def bucketfn(tick, resolution):
         best = (buckets[0], metric(tick, resolution * note_proportions[0]))
@@ -198,14 +199,13 @@ def generateTickToBucket(buckets, metric):
                 best = (buckets[index], dist)
                 # print best
         # print best[0]
-        # TODO: add parameter for minimum bucket
-        if best[0] == (1.0/16, 't'):
+        if best[0] == buckets[min_length_index]:
             #print 'testing 16th triplet'
             # print tick, best[1]
-            expected = 1.0/16 * 4 * 2 / 3 * resolution
+            expected = note_proportions[min_length_index] * resolution
             # print expected
             if tick < .75 * expected:
-                #print 'Fake'
+                # print 'Fake'
                 return None
         return best[0]
 
