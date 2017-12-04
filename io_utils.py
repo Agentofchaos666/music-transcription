@@ -16,7 +16,7 @@ NOTE_TRACKS = ['Piano right']
 OUTPUT_DIR = 'smoothed_midi'
 ALLOWED_TEMPO_DIFF = 10
 
-def generateTrainData(dirs, buckets, allowed_tempo_diff=ALLOWED_TEMPO_DIFF):
+def generateTrainData(dirs, buckets, allowed_tempo_diff=ALLOWED_TEMPO_DIFF, metric=logMetric):
     assert(len(buckets) != 0)
     assert(len(dirs) != 0)
     H_mat = []
@@ -26,7 +26,7 @@ def generateTrainData(dirs, buckets, allowed_tempo_diff=ALLOWED_TEMPO_DIFF):
     filenames = getInputFiles(dirs)
     assert(len(filenames) != 0)
     # bucketfn(tick, resolution) --> bucket
-    bucketfn = generateTickToBucket(buckets, logMetric)
+    bucketfn = generateTickToBucket(buckets, metric)
     final_filenames = []
     for f in filenames:
         print f
@@ -38,6 +38,38 @@ def generateTrainData(dirs, buckets, allowed_tempo_diff=ALLOWED_TEMPO_DIFF):
         E_mat.append(E)
         tempos.append(tempo)
     return H_mat, E_mat, tempos, final_filenames, sigs
+
+def generateTempoErrorData(dirs, buckets, tempo_error_list, metric=squaredMetric):
+    '''
+    Like generateTrainData, but tempos event lists in E_mat replaced by
+    list of event lists, with tempos off by percents as defined in tempo_error_list
+    ex) tempo_error_list = [-10, 0, 10]
+    E_mat_with_error[0] = [event list 0 with tempo off by -10%,
+                           event list 0 with tempo off by 0%,
+                           event list 0 with tempo off by 10%]
+    '''
+    print 'Gerate tempo error data'
+    assert(len(buckets) != 0)
+    assert(len(dirs) != 0)
+    H_mat = []
+    # E_mat_with_error is E_mat with each 
+    E_mat_with_error = []
+    # each tempo is list of tempos with errors
+    tempos = []
+    sigs = []
+    filenames = getInputFiles(dirs)
+    assert(len(filenames) != 0)
+    # bucketfn(tick, resolution) --> bucket
+    bucketfn = generateTickToBucket(buckets, metric)
+    for f in filenames:
+        H, E_with_error, tempo_list, timeSig, keySig = \
+            processMIDI(f, bucketfn, allowed_tempo_diff=float('inf'), tempo_errors=tempo_error_list)
+        sigs.append((timeSig, keySig))
+        H_mat.append(H)
+        E_mat_with_error.append(E_with_error)
+        tempos.append(tempo_list)
+    return H_mat, E_mat_with_error, tempos, filenames, sigs
+
 
 def eventListToMIDI(eventList, buckets, ticks_per_beat, 
     tempo_bpm, filename, output_dir=OUTPUT_DIR, timeSig=None, keySig=None):
@@ -124,10 +156,18 @@ def getInputFiles(dirs):
 def linearMetric(t1, t2):
     return abs(t2 - t1)
 
+def squaredMetric(t1, t2):
+    return (t2 - t1) ** 2
+
 def logMetric(t1, t2):
     t1 = float(t1)
     t2 = float(t2)
     return abs(math.log(t2) - math.log(t1))
+
+def squaredLogMetric(t1, t2):
+    t1 = float(t1)
+    t2 = float(t2)
+    return (math.log(t2) - math.log(t1)) ** 2
 
 def generateTickToBucket(buckets, metric):
     # proportion of resolution actually corresponding to each bucket
@@ -157,11 +197,21 @@ def generateTickToBucket(buckets, metric):
                 # print 'update'
                 best = (buckets[index], dist)
                 # print best
+        # print best[0]
+        # TODO: add parameter for minimum bucket
+        if best[0] == (1.0/16, 't'):
+            #print 'testing 16th triplet'
+            # print tick, best[1]
+            expected = 1.0/16 * 4 * 2 / 3 * resolution
+            # print expected
+            if tick < .75 * expected:
+                #print 'Fake'
+                return None
         return best[0]
 
     return bucketfn
 
-def processMIDI(f, bucketfn, allowed_tempo_diff):
+def processMIDI(f, bucketfn, allowed_tempo_diff, tempo_errors=None):
     pattern = midi.read_midifile(file(f))
     tempoInfo = getTempoInfo(pattern)
     timeSignatureEvent = getFirstEvent(pattern, midi.events.TimeSignatureEvent)
@@ -179,27 +229,26 @@ def processMIDI(f, bucketfn, allowed_tempo_diff):
     # print timeList
     # generate list of events with absolute ticks corresponding
     tickList_H = timeToHTickList(timeList)
-    tickList_E = timeToETickList(timeList, tempo, ticks_per_beat)
-    # print timeList[:10]
-    # print tickList_E[:10]
-    # print tickList_H[:10]
-    E = tickToEventList(tickList_E, bucketfn, ticks_per_beat)
     H = tickToEventList(tickList_H, bucketfn, ticks_per_beat)
+    if tempo_errors == None:
+        tickList_E = timeToETickList(timeList, tempo, ticks_per_beat)
+        E = tickToEventList(tickList_E, bucketfn, ticks_per_beat)
+        return H, E, tempo, timeSignatureEvent, keySignatureEvent
+    else:
+        E_with_errors = []
+        tempo_list = []
+        for percent_err in tempo_errors:
+            curr_tempo = int(tempo * ((100.0 + percent_err) / 100))
+            # print percent_err, curr_tempo
+            tickList_E = timeToETickList(timeList, curr_tempo, ticks_per_beat)
+            curr_E = tickToEventList(tickList_E, bucketfn, ticks_per_beat)
+            E_with_errors.append(curr_E)
+            tempo_list.append(curr_tempo)
+        return H, E_with_errors, tempo_list, timeSignatureEvent, keySignatureEvent
     # print len(E)
     # print E[:5]
     # print len(H)
     # print H[:5]
-    return H, E, tempo, timeSignatureEvent, keySignatureEvent
-    # to absolute time with given tempo
-    # process list to handle simultaneous notes/have rests/
-    # be properly consecutive
-    # convert to E list
-
-    # H list generation
-    # generate note event - tick list from groundtruth
-    # process list to handle simultaneous notes/have rests/
-    # be properly consecutive
-    # convert to H list
 
 def getFirstEvent(pattern, eventType):
     for track in pattern:
@@ -281,15 +330,23 @@ def isValidTempoInfo(tempoInfo, allowed_tempo_diff):
 
 
 if __name__ == '__main__':
-    H_mat, E_mat, tempos, filenames, signatures = generateTrainData(TEST_DIRS, TEST_BUCKETS)
-    print tempos, filenames
-    print len(H_mat[0])
-    print len(E_mat[0])
-    print E_mat[0][:10]
-    for i in range(len(E_mat)):
-        timeSig, keySig = signatures[i]
-        eventListToMIDI(E_mat[i], TEST_BUCKETS, 480, tempos[i], \
-            filenames[i][:-4]+'_E.mid', timeSig=timeSig, keySig=keySig)
+    H_mat, E_mat_with_error, tempo_list, filenames, sigs = generateTempoErrorData(TEST_DIRS, TEST_BUCKETS, [-20, -10, 0, 10, 20])
+    print len(E_mat_with_error)
+    print len(E_mat_with_error[0])
+    print len(E_mat_with_error[0][0])
+    for i in range(len(E_mat_with_error[0])):
+        print E_mat_with_error[0][i][:5]
+    print tempo_list
+
+    # H_mat, E_mat, tempos, filenames, signatures = generateTrainData(TEST_DIRS, TEST_BUCKETS)
+    # print tempos, filenames
+    # print len(H_mat[0])
+    # print len(E_mat[0])
+    # print E_mat[0][:10]
+    # for i in range(len(E_mat)):
+    #     timeSig, keySig = signatures[i]
+    #     eventListToMIDI(E_mat[i], TEST_BUCKETS, 480, tempos[i], \
+    #         filenames[i][:-4]+'_E.mid', timeSig=timeSig, keySig=keySig)
     # print bf(480, 480)
     # print bf(240, 480)
     # print bf(200, 480)

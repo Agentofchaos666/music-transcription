@@ -85,7 +85,8 @@ class HMM():
         print 'S =', S
         for i in range(S):
             bucket = state_space[i][-1]
-            dp[i][0] = (self.transProbs[tuple(self.starts)][bucket], 0)
+            dp[i][0] = (self.transProbs[tuple(self.starts)][bucket] \
+                        * self.emissionProbs[bucket][E[0]] ** 2, 0)
 
         # consistent indices contains indeces of conditions such that
         # k | state_space[i] can have a nonzero transition probability
@@ -111,7 +112,7 @@ class HMM():
                 max_prev_index = 0
                 for k in consistent_indices[curr_state]:
                     prob = self.transProbs[tuple(state_space[k])][bucket] \
-                            * dp[k][j-1][0] * self.emissionProbs[bucket][E[j]]
+                            * dp[k][j-1][0] * self.emissionProbs[bucket][E[j]] ** 2
                     if prob > max_prob:
                         max_prob = prob
                         max_prev_index = k
