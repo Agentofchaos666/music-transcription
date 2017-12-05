@@ -7,11 +7,16 @@ import copy
 
 TEST_DIRS = ['debussy']
 # needs to be floats
-TEST_BUCKETS = [[1.0/16, 'd'], [1.0/16, 't'], [1.0/16],
-                [1.0/8, 'd'], [1.0/8, 't'], [1.0/8],
-                [1.0/4, 'd'], [1.0/4, 't'], [1.0/4],
-                [1.0/2, 'd'], [1.0/2],
-                [1.0]]
+# TEST_BUCKETS = [[1.0/16, 'd'], [1.0/16, 't'], [1.0/16],
+#                 [1.0/8, 'd'], [1.0/8, 't'], [1.0/8],
+#                 [1.0/4, 'd'], [1.0/4, 't'], [1.0/4],
+#                 [1.0/2, 'd'], [1.0/2],
+#                 [1.0]]
+TEST_BUCKETS = [(1.0/16, 'd'), (1.0/16, 't'), (1.0/16,),
+                (1.0/8, 'd'), (1.0/8, 't'), (1.0/8,),
+                (1.0/4, 'd'), (1.0/4, 't'), (1.0/4,),
+                (1.0/2, 'd'), (1.0/2,),
+                (1.0,), (2.0,), (3.0,), (4.0,), (5,0,)]
 NOTE_TRACKS = ['Piano right']
 OUTPUT_DIR = 'smoothed_midi'
 ALLOWED_TEMPO_DIFF = 10
@@ -85,6 +90,33 @@ def generateTempoErrorData(dirs, buckets, tempo_error_list, metric=squaredMetric
         tempos.append(tempo_list)
     return H_mat, E_mat_with_error, tempos, filenames, sigs
 
+def generatePredictedTempoMatrix(filename, buckets, pred_tempos, metric=squaredMetric):
+    assert(len(buckets) != 0)
+    E_pred_tempos = []
+    sigs = []
+    bucketfn = generateTickToBucket(buckets, metric)
+    for tempo in pred_tempos:
+        _, E_pred, _, timeSig, keySig = \
+            processMIDI(filename, bucketfn, allowed_tempo_diff=float('inf'), e_tempo=tempo)
+        sigs.append((timeSig, keySig))
+        E_pred_tempos.append(E_pred)
+    return E_pred_tempos, sigs
+
+
+def generateTempoPredictionData(dirs):
+    assert(len(dirs) != 0)
+    E_time_mat = []
+    tempos = []
+    filenames = getInputFiles(dirs)
+    for f in filenames:
+        pattern = midi.read_midifile(file(f))
+        tempoInfo = getTempoInfo(pattern)
+        tempos.append(tempoInfo[2])
+        timeList = NoteEvents(pattern, note_tracks=NOTE_TRACKS, \
+            start_on_note=True).note_time_list
+        E_time = timeToEventTimeList(timeList)
+        E_time_mat.append(E_time)
+    return E_time_mat, tempos, filenames
 
 def eventListToMIDI(eventList, buckets, ticks_per_beat, 
     tempo_bpm, filename, output_dir=OUTPUT_DIR, timeSig=None, keySig=None):
@@ -112,6 +144,7 @@ def eventListToMIDI(eventList, buckets, ticks_per_beat,
     pattern.append(track)
     tick = 0
     for bucket, notes, volume in eventList:
+        if bucket == None: continue
         for note in notes:
             noteEvent = midi.NoteOnEvent(tick=int(tick), pitch=note, velocity=volume)
             track.append(noteEvent)
@@ -186,7 +219,7 @@ def generateTickToBucket(buckets, metric):
     # print note_proportions
     min_length_index = min(range(len(note_proportions)), key=lambda x: note_proportions[x])
 	
-    def bucketfn(tick, resolution):
+    def bucketfn(tick, resolution, rest=False):
         best = (buckets[0], metric(tick, resolution * note_proportions[0]))
         for index, note_prop in enumerate(note_proportions):
             # print 'index/np: ', index, note_prop
@@ -203,14 +236,14 @@ def generateTickToBucket(buckets, metric):
             # print tick, best[1]
             expected = note_proportions[min_length_index] * resolution
             # print expected
-            if tick < .75 * expected:
+            if tick < .5 * expected and rest:
                 # print 'Fake'
                 return None
         return best[0]
 
     return bucketfn
 
-def processMIDI(f, bucketfn, allowed_tempo_diff, tempo_errors=None):
+def processMIDI(f, bucketfn, allowed_tempo_diff, tempo_errors=None, e_tempo=None):
     pattern = midi.read_midifile(file(f))
     tempoInfo = getTempoInfo(pattern)
     timeSignatureEvent = getFirstEvent(pattern, midi.events.TimeSignatureEvent)
@@ -219,6 +252,7 @@ def processMIDI(f, bucketfn, allowed_tempo_diff, tempo_errors=None):
     if not isValidTempoInfo(tempoInfo, allowed_tempo_diff):
         return [None] * 5
     tempo = tempoInfo[2]
+    if e_tempo != None: tempo = e_tempo
     ticks_per_beat = pattern.resolution
     # generate E list
     # timeList [(midi_note_event, absolute time)]
@@ -276,6 +310,20 @@ def timeToHTickList(timeList):
     firstNoteTick = timeList[0][0].tick
     return [(event, event.tick - firstNoteTick) for event, ms in timeList]
 
+def timeToEventTimeList(timeList):
+    # Input: list [(midi_event, absolute_time)] with time in ms
+    # Output: list [event_time]
+    result = []
+    prevTime = 0
+    for event, currTime in timeList:
+        if type(event) == midi.events.EndOfTrackEvent:
+            break
+        timeDiff = currTime - prevTime
+        if timeDiff != 0:
+            result.append(timeDiff)
+        prevTime = currTime
+    return result
+
 def tickToEventList(tickList, bucketfn, ticks_per_beat):
     # Input: list [(midi_event, tick)]
     # Output: list [(bucket, note/rest, volume)]
@@ -297,7 +345,7 @@ def tickToEventList(tickList, bucketfn, ticks_per_beat):
             else:
                 currNotes = []
         else:
-            bucket = bucketfn(tickDiff, ticks_per_beat)
+            bucket = bucketfn(tickDiff, ticks_per_beat, len(currNotes)==0)
             result.append((bucket, currNotes, currVolume))
             if volume == 0:
                 currNotes = []
