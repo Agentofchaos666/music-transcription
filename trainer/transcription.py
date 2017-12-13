@@ -1,9 +1,13 @@
+import matplotlib
+matplotlib.use('agg')
 import matplotlib.pyplot as plt
 import numpy as np
 import random
+import os
 from sklearn.metrics import confusion_matrix, f1_score, precision_score, recall_score, accuracy_score
 import time
 from StringIO import StringIO
+
 
 from keras.layers import Input, Dense, Activation, Flatten, Dropout
 from keras.layers import Convolution2D, AveragePooling2D, BatchNormalization, MaxPooling2D, ZeroPadding2D
@@ -38,11 +42,12 @@ LEARNING_RATE = 0.1
 MOMENTUM_RATE = 0.9
 NUM_EPOCHS = 100
 BATCH_SIZE = 128
+OUTPUT_FREQ = 1
 TRAINING_DIRS = [] 
 
 def plot_predictions(plotting_info):
     for prediction, target, epoch, i in plotting_info:
-        suffix = '_' + str(epoch) + '_' + str(i) + '.png'
+        suffix = '_' + str(epoch) + '_' + str(i) + '_' + IDENTITY + '.png'
         prediction = np.squeeze(prediction) # print prediction.shape
         target = [np.squeeze(arr) for arr in target] # print len(target), target[0].shape
         plt.subplot(2,1,1)
@@ -86,7 +91,6 @@ class Metrics(Callback):
             print '---> Inference Time for above:', inference_time - end_time
             end_time = inference_time
 
-        print '*********************** max f1 score =', max(f1_scores), '| idx =', f1_scores.index(max(f1_scores))
         max_idx_to_plot = val_target[0].shape[0]-627
         indices_to_visualize = [max_idx_to_plot, min(f1_scores.index(max(f1_scores)), max_idx_to_plot)]
         plot_predictions([(val_predict[:, i:i+626], [x[i:i+626] for x in val_target], epoch, i) for i in indices_to_visualize])
@@ -196,8 +200,20 @@ def main():
     parser.add_argument(
       '--job-dir',
       help='GCS location to write checkpoints and export models',
-      required=False
-    )                                                                                                   
+      required=True
+    )      
+    parser.add_argument(
+        '--id',
+        help='Output file id',
+        type=str,
+        default="test"
+    )         
+    parser.add_argument(
+        '--dropout-rate',
+        help= "Dropout rate",
+        type=float,
+        default=0.3
+    )                                                                                                            
     args = parser.parse_args()
     arguments = args.__dict__
     print arguments
@@ -206,6 +222,10 @@ def main():
     data_set_up_start_time = time.time()                                                                        
     x_stream = StringIO(file_io.read_file_to_string(arguments['X_file']))
     y_stream = StringIO(file_io.read_file_to_string(arguments['Y_file']))
+    global JOB_DIR, IDENTITY
+    JOB_DIR = arguments['job_dir']
+    IDENTITY = arguments['id']
+    DROPOUT_RATE = arguments['dropout_rate']
     X = np.load(x_stream)
     Y = np.load(y_stream)
     numSlicesForTrain = int(X.shape[0] * 0.8)

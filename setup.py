@@ -8,6 +8,7 @@ setup(name='trainer',
       license='MIT',
       install_requires=[
           'keras',
-          'h5py'
+          'h5py',
+          'matplotlib'
       ],
       zip_safe=False)

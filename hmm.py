@@ -6,7 +6,7 @@ class HMM():
         self.numBuckets = len(buckets) 
         self.buckets = buckets
         self.n = nGramLength - 1 # number of things to condition on
-        self.starts = [0] * self.n
+        self.starts = [None] * self.n
         self.tCounts = defaultdict(lambda: defaultdict(lambda: laplace))
         self.eCounts = defaultdict(lambda: defaultdict(lambda: laplace))
 
@@ -25,18 +25,10 @@ class HMM():
                 self.tCounts[to_condition_on][h[j]] += 1
                 self.eCounts[h[j]][e[j]] += 1
 
-        possible_tuples = list(itertools.product(self.buckets, repeat=self.n))
-        for i in range(len(possible_tuples)):
-            possible_tuples[i] = tuple(possible_tuples[i])
-        start_possible_tuples = []
-        for j in range(self.n):
-            if j < 1:
-                start_possible_tuples.append(tuple(self.starts[j:j+self.n]))
-            else:
-                start_possible_tuples.append(tuple(self.starts[j:j+self.n] + list(itertools.product(self.buckets, repeat=j))))
-
-        possible_tuples += start_possible_tuples
-        print start_possible_tuples
+        possible_non_start_tuples = self._generate_non_start_conditions()
+        possible_start_tuples = self._generate_start_conditions()
+        possible_tuples = possible_non_start_tuples + possible_start_tuples
+        print possible_start_tuples
         print '******************************************************'
 
         # print possible_tuples
@@ -45,6 +37,100 @@ class HMM():
 
         emission_sums = {key : sum([self.eCounts[key][bucket] for bucket in self.buckets]) for key in self.buckets}
         self.emissionProbs = {key : {bucket : float(self.eCounts[key][bucket])/emission_sums[key] for bucket in self.buckets} for key in self.buckets}
+
+    def _generate_non_start_conditions(self):
+        # returns list of [(x_i-1, x_i-2, ... , x_n)] possible tuples to be conditioned
+        # on not including special start state
+        possible_tuples = list(itertools.product(self.buckets, repeat=self.n))
+        for i in range(len(possible_tuples)):
+            possible_tuples[i] = tuple(possible_tuples[i])
+        return possible_tuples
+
+    def _generate_start_conditions(self):
+        # returns list of [(x_i-1, x_i-2, ... , x_n)] possible tuples that contain
+        # special start state to be conditioned
+        start_possible_tuples = []
+        for j in range(self.n):
+            if j < 1:
+                start_possible_tuples.append(tuple(self.starts[j:j+self.n]))
+            else:
+                for permutation in itertools.product(self.buckets, repeat=j):
+                    start_possible_tuples.append(tuple(self.starts[j:j+self.n] + list(permutation)))
+        return start_possible_tuples
+
+    def predict(self, E):
+        predictions = []
+        for i, e in enumerate(E):
+            predictions.append(self.vitterbi(e))
+            if i % 5 == 0:
+                print str(i) + '/' + str(len(E))
+        return predictions
+
+    def vitterbi(self, E):
+        '''
+        Returns most likely sequence X of hidden states given model and E
+        Handles nth order HMM's
+        '''
+        # states (x_t-n, x_t-n+1, ... , x_t-1, x_t)
+        state_space = self._generate_non_start_conditions()
+        obs_space = self.buckets
+        K = len(self.buckets)   # size of observation space
+        S = len(state_space)    # size of state space
+        T = len(E)              # number of observations
+        # dp is a S x T table w/ 
+        # dp[i][j] = (prob of max prob path x_0, ... , x_j=state_space[i], 
+        #             x_j-1 for max prob path)
+        dp = [[(0,0)] * T for _ in range(S)]
+        print 'dp dims:', len(dp), 'x', len(dp[0])
+        print 'S =', S
+        for i in range(S):
+            bucket = state_space[i][-1]
+            dp[i][0] = (self.transProbs[tuple(self.starts)][bucket] \
+                        * self.emissionProbs[bucket][E[0]] ** 2, 0)
+
+        # consistent indices contains indeces of conditions such that
+        # k | state_space[i] can have a nonzero transition probability
+        consistent_indices = {}
+        for i in range(len(state_space)):
+            indices = []
+            key = state_space[i]
+            # print key
+            for j in range(len(state_space)):
+                condition = state_space[j]
+                # print 'condition', condition
+                # print key[:self.n-1], condition[-(self.n-1):]
+                if key[:self.n-1] == condition[-(self.n-1):]:
+                    # print key[:self.n-1], condition[-(self.n-1):]
+                    indices.append(j)
+            consistent_indices[key] = indices
+
+        for j in range(1, T):
+            for i in range(S):
+                curr_state = state_space[i]
+                bucket = curr_state[-1]
+                max_prob = -1
+                max_prev_index = 0
+                for k in consistent_indices[curr_state]:
+                    prob = self.transProbs[tuple(state_space[k])][bucket] \
+                            * dp[k][j-1][0] * self.emissionProbs[bucket][E[j]] ** 2
+                    if prob > max_prob:
+                        max_prob = prob
+                        max_prev_index = k
+                dp[i][j] = (max_prob, max_prev_index)
+
+        # X = list of optimal hidden events
+        X = [0] * T
+        max_final_index = max(range(S), key=lambda x: dp[x][-1][0])
+        X[-1] = state_space[max_final_index][-1]
+        prev_index = dp[max_final_index][-1][1]
+        for i in reversed(range(T-1)):
+            X[i] = state_space[prev_index][-1]
+            prev_index = dp[prev_index][-1][1]
+        return X
+
+
+
+
 
     def predict_bigram(self, E):
         predictions = []
@@ -92,6 +178,8 @@ class HMM():
 #     print 'E:', E[i]
 #     print '====================='
 # model.train(H, E)
+# predictions = model.predict(E)
+# print predictions
 # for key, prob in model.transProbs.iteritems():
 #     print key, ':', prob
 # print '====================='
