@@ -5,6 +5,7 @@ import numpy as np
 from groundtruth import NoteEvents
 import midi
 import glob
+from random import shuffle
 
 DURATION = 60
 DOWNSAMPLED_SR = 16000
@@ -13,7 +14,7 @@ NUM_OCTAVES = 7
 BINS_PER_OCTAVE = 36
 NUM_BINS = NUM_OCTAVES * BINS_PER_OCTAVE
 WINDOW_SIZE = 7
-TRAINING_DIRS = ['mozart'] 
+TRAINING_DIRS = ['mozart', 'mendelssohn', 'grieg', 'debussy', 'chopin', 'beeth'] 
 
 def getFileList():
     file_list = []
@@ -24,6 +25,8 @@ def getFileList():
         # print train_files
         for filename in train_files:
             file_list.append((filename+'.wav',filename+'.mid'))
+    
+    shuffle(file_list)
     return file_list
 
 def preprocess_wav_file(files, Y_numSlices):
@@ -86,8 +89,8 @@ def main():
 	print "Number of Songs: {}".format(len(filenames))
 	X, Y = get_wav_midi_data(filenames)
 	print "Number of Training Examples: {}".format(X.shape[0])
-	np.save("X_input", X)
-	np.save("Y_input", Y)
+	np.save("X_input_shuffled", X)
+	np.save("Y_input_shuffled", Y)
 
 
 if __name__ == "__main__":

@@ -6,6 +6,7 @@ import argparse
 from createInputs import get_wav_midi_data
 import io_utils
 
+# USAGE: python predict-as-midi.py --file-prefix ./beeth/appass_1 --model-path model_shuffled.h5
 
 def main():
     parser = argparse.ArgumentParser()
