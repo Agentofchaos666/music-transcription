@@ -82,6 +82,7 @@ def generateTempoErrorData(dirs, buckets, tempo_error_list, metric=squaredMetric
     # bucketfn(tick, resolution) --> bucket
     bucketfn = generateTickToBucket(buckets, metric)
     for f in filenames:
+        print f
         H, E_with_error, tempo_list, timeSig, keySig = \
             processMIDI(f, bucketfn, allowed_tempo_diff=float('inf'), tempo_errors=tempo_error_list)
         sigs.append((timeSig, keySig))
@@ -117,6 +118,30 @@ def generateTempoPredictionData(dirs):
         E_time = timeToEventTimeList(timeList)
         E_time_mat.append(E_time)
     return E_time_mat, tempos, filenames
+
+def generateTempoPredictionDataLimited(dirs):
+    assert(len(dirs) != 0)
+    E_time_mat = []
+    tempos = []
+    tempo_infos = []
+    filenames = getInputFiles(dirs)
+    final_filenames = []
+    for f in filenames:
+        pattern = midi.read_midifile(file(f))
+        tempoInfo = getTempoInfo(pattern)
+        # print tempoInfo[3]-tempoInfo[1]
+        # if tempoInfo[3] - tempoInfo[1] > 30:
+        #     print 'skip'
+        #     continue
+        # final_filenames.append(f)
+        tempos.append(tempoInfo[2])
+        tempo_infos.append(tempoInfo)
+        timeList = NoteEvents(pattern, note_tracks=NOTE_TRACKS, \
+            start_on_note=True).note_time_list
+        E_time = timeToEventTimeList(timeList)
+        E_time_mat.append(E_time)
+    return E_time_mat, tempos, filenames, tempo_infos
+        
 
 def eventListToMIDI(eventList, buckets, ticks_per_beat, 
     tempo_bpm, filename, output_dir=OUTPUT_DIR, timeSig=None, keySig=None):
@@ -156,6 +181,44 @@ def eventListToMIDI(eventList, buckets, ticks_per_beat,
     track.make_ticks_rel()
     print track[:10]
     midi.write_midifile(output_dir+'/'+filename, pattern)
+
+def predictionToBasicMIDI(pred_mat, filename, slices_per_second=31.25):
+    '''
+    pred_mat: list of 88 np arrays, each of length num_slices
+    filename: prefix to save MIDI file
+    TEMPO: tempo for MIDI file to be created under
+    '''
+    TEMPO = 60
+    TICKS_PER_BEAT = slices_per_second * 12
+    NOTE_OFFSET = 9 # add to index to get MIDI pitch
+    VELOCITY = 40 # constant velocity for each note
+
+    pattern = midi.Pattern()
+    pattern.resolution = TICKS_PER_BEAT
+    track = midi.Track()
+    track.make_ticks_abs()
+    tempoEvent = midi.events.SetTempoEvent()
+    tempoEvent.set_bpm(TEMPO)
+    track.append(tempoEvent)
+    pattern.append(track)
+    noteOn = [0] * 88
+    num_pitches, num_slices = pred_mat.shape
+    print num_pitches, num_slices
+    for t in range(num_slices):
+        for pitch in range(num_pitches):
+            state = pred_mat[pitch][t]
+            midi_pitch = pitch + NOTE_OFFSET
+            if state == 1 and noteOn[pitch] == 0:
+                track.append(midi.NoteOnEvent(tick=12*t, pitch=midi_pitch, velocity=VELOCITY))
+                noteOn[pitch] = 1
+            elif state == 0 and noteOn[pitch] == 1:
+                track.append(midi.NoteOnEvent(tick=12*t, pitch=midi_pitch, velocity=0))
+                noteOn[pitch] = 0
+    track.append(midi.EndOfTrackEvent(tick=12*t))
+    track.make_ticks_rel()
+    print track[:10]
+    midi.write_midifile(filename, pattern)
+
 
 def generateHMMMatrix(mat):
     # Generates matrix formatted for HMM processing from event list
