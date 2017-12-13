@@ -1,4 +1,3 @@
-
 import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
@@ -18,9 +17,18 @@ from keras import layers
 from keras.utils import np_utils
 from keras import backend as K
 from keras.callbacks import Callback
+from keras.callbacks import LearningRateScheduler
+from keras.models import load_model
 
 from tensorflow.python.lib.io import file_io
 import argparse
+import h5py
+
+############################
+import tensorflow as tf 
+from keras.backend.tensorflow_backend import set_session 
+set_session(tf.Session())
+############################
 
 DURATION = 60
 DOWNSAMPLED_SR = 16000
@@ -33,7 +41,7 @@ WINDOW_SIZE = 7
 LEARNING_RATE = 0.1
 MOMENTUM_RATE = 0.9
 NUM_EPOCHS = 100
-BATCH_SIZE = 64
+BATCH_SIZE = 128
 OUTPUT_FREQ = 1
 TRAINING_DIRS = [] 
 
@@ -46,25 +54,14 @@ def plot_predictions(plotting_info):
         plt.matshow(prediction, fignum=False)
         plt.subplot(2,1,2)
         plt.matshow(target, fignum=False)
-        plt.savefig('comparison' + suffix)
-        storeCloud('comparison' + suffix)
-
-def storeCloud(filename):
-    with file_io.FileIO(filename, mode='r') as input_f:
-        with file_io.FileIO(JOB_DIR + "/" + filename, mode='w+') as output_f:
-                output_f.write(input_f.read())
-    #if os.path.exists(filename):
-        #os.system("rm {}".format(filename))
+        plt.savefig('comparison-plots/comparison' + suffix)
+        plt.clf()
 
 class LossHistory(Callback):
     def on_train_begin(self,logs={}):
         self.losses =[]
 
     def on_batch_end(self, batch, logs={}):
-        # print '=====> PRINTING LOGS FOR BATCH [', batch, '] ....'
-        # for key, val in sorted(logs.items()):
-        #     print key, ':', val
-        # print '=====> FINISHED PRINTING LOGS.'
         self.losses.append(logs.get('loss'))
 
 class Metrics(Callback):
@@ -75,9 +72,6 @@ class Metrics(Callback):
         self.val_f1s = []
         self.val_recalls = []
         self.val_precisions =[]
-        self.error_file = "error_output_{}.txt".format(IDENTITY)
-        with open(self.error_file, 'w') as error_output:
-            error_output.write("")   #reset file
 
     def on_epoch_begin(self, epoch, logs={}):
         print 'EPOCH [', epoch, ']:'
@@ -85,74 +79,38 @@ class Metrics(Callback):
 
     def on_epoch_end(self, epoch, logs={}):
         end_time = time.time()
-        print '---> Train:', end_time - self.start_time, 
-        acc_scores = []
-        f1_scores = []
-        recall_scores = []
-        precision_scores =[]
-
-        val_predict = np.asarray(self.model.predict(self.model.validation_data[0]))
-        val_predict = val_predict.round()
-        val_target = self.model.validation_data[1]
-        # print 'PREDICT_SHAPE:', val_predict.shape, '| TARGET_SHAPE:', len(val_target), val_target[0].shape
-        error_output = open(self.error_file, 'a')
-        error_output.write('----EPOCH {}----\n'.format(epoch))
-        for i in range(val_predict.shape[0]):
-            pred = val_predict[i] 
-            target = val_target[i] 
-            val_acc = accuracy_score(target, pred)
-            val_f1 = f1_score(target, pred)
-            val_recall = recall_score(target, pred)
-            val_precision = precision_score(target, pred)
-            acc_scores.append(val_acc)
-            f1_scores.append(val_f1)
-            recall_scores.append(val_recall)
-            precision_scores.append(val_precision)
-            self.val_recalls.append(val_recall)
-            self.val_precisions.append(val_precision)
-            # print '== NOTE {}: F1: {} | Precision: {} | Recall: {}'.format(i, val_f1, val_precision, val_recall)
-            #error_output.write('== NOTE {}: VAL_F1: {} | VAL_PRECISION: {} | VAL_RECALL {}\n'.format(i, val_f1, val_precision, val_recall))
-        self.val_f1s.extend(f1_scores)
-        inference_time = time.time()
-        f1 = sum(f1_scores) / float(len(f1_scores))
-        recall = sum(recall_scores) / float(len(recall_scores))
-        precision = sum(precision_scores) / float(len(precision_scores))
-        acc = sum(acc_scores) / float(len(acc_scores))
-
-        print 'F1 SCORE =', f1, 
-        print '| RECALL =', recall,
-        print '| PRECISION =', precision,
-        print '| ACC =', acc
-        print '*********************** max f1 score =', max(f1_scores), '| idx =', f1_scores.index(max(f1_scores))
-        error_output.write('F1 SCORE = {} | RECALL = {} | PRECISION = {} |  ACCURACY = {}\n'.format(f1, recall, precision, acc))
-        error_output.write('*********************** max f1 score = {} | idx = {}\n'.format(max(f1_scores), f1_scores.index(max(f1_scores))))
-        error_output.close()
-        storeCloud(self.error_file)
+        print '---> Train:', end_time - self.start_time 
+        
+        if epoch > 2:
+            data_to_use = [self.model.train_data, self.model.validation_data]
+        else: 
+            data_to_use = [self.model.validation_data]
+        for X, Y in data_to_use:
+            evaluate_model(self.model, X, Y)
+            inference_time = time.time()
+            print '---> Inference Time for above:', inference_time - end_time
+            end_time = inference_time
 
         max_idx_to_plot = val_target[0].shape[0]-627
-        indices_to_visualize = [0, min(f1_scores.index(max(f1_scores)), max_idx_to_plot)]
+        indices_to_visualize = [max_idx_to_plot, min(f1_scores.index(max(f1_scores)), max_idx_to_plot)]
         plot_predictions([(val_predict[:, i:i+626], [x[i:i+626] for x in val_target], epoch, i) for i in indices_to_visualize])
-        return
+
 
 class Checkpoint(Callback):
     def on_epoch_end(self, epoch, logs={}):
-        self.model_file = "model_{}.h5".format(IDENTITY)
-        self.target_file = "target_{}.npy".format(IDENTITY)
-        self.predict_file = "predict_{}.npy".format(IDENTITY)
-        val_predict = np.asarray(self.model.predict(self.model.validation_data[0]))
-        val_predict = val_predict.round()
-        val_target = self.model.validation_data[1]
+        self.model.save("model.h5")
 
-        if epoch == 0:
-            np.save(self.target_file, val_target)
-            storeCloud(self.target_file)
-
-        if epoch % OUTPUT_FREQ == 0:
-            self.model.save(self.model_file)
-            storeCloud(self.model_file)
-            np.save(self.predict_file, val_predict)
-            storeCloud(self.predict_file)
-
+def step_decay_3(epoch):
+    initial_lrate = 0.05
+    if epoch < 5:
+        lrate = initial_lrate
+    elif epoch < 12:
+        lrate = initial_lrate / 2
+    elif epoch < 20: 
+        lrate = initial_lrate / 4
+    else:
+        lrate = initial_lrate / 8
+    return lrate
 
 def ModelBuilder(input_shape, num_filters, kernel_size_tuples, pool_size, num_hidden_units, dropout_rate):
     frame_input = Input(shape=input_shape)
@@ -180,11 +138,52 @@ def ModelBuilder(input_shape, num_filters, kernel_size_tuples, pool_size, num_hi
     return Model(inputs=frame_input, outputs=outputs) 
 
 def custom_loss_function(y_true, y_pred):
+    # K.print_tensor(K.shape(y_true))
+
+    # ones = K.ones(shape=K.int_shape(y_true))
+    # weights = K.update_add(ones, y_true)
+    binary_cross_entropy = K.binary_crossentropy(y_true, y_pred)
+    return K.mean(binary_cross_entropy * K.exp(y_true))
+    # K.print_tensor(weights, 'WEIGHTS: ')
+
+
     print '======== Y_TRUE ========='
-    print y_true.data
+    print type(y_true)
+    # y_true_array = tf.Session().run(y_true)
+    # print type(y_true_array), y_true_array.shape, y_true_array[0]
     print '======== Y_PRED ========='
-    print y_pred.data
-    
+    print type(y_pred)
+    # y_pred_array = tf.Session().run(y_pred)
+    # print type(y_pred_array), y_pred_array.shape, y_pred_array[0]
+ 
+def evaluate_model(model, X, Y):   
+    acc_scores = []
+    f1_scores = []
+    recall_scores = []
+    precision_scores =[]
+
+    val_predict = np.asarray(model.predict(X))
+    val_predict = val_predict.round()
+    val_target = Y
+
+    for i in range(val_predict.shape[0]):
+        pred = val_predict[i] 
+        target = val_target[i] 
+        
+        val_acc = accuracy_score(target, pred)
+        val_f1 = f1_score(target, pred)
+        val_recall = recall_score(target, pred)
+        val_precision = precision_score(target, pred)
+        
+        acc_scores.append(val_acc)
+        f1_scores.append(val_f1)
+        recall_scores.append(val_recall)
+        precision_scores.append(val_precision)
+
+    print '---> F1:', sum(f1_scores) / float(len(f1_scores)), 
+    print '| Recall:', sum(recall_scores) / float(len(recall_scores)),
+    print '| Precision:', sum(precision_scores) / float(len(precision_scores)),
+    print '| Acc:', sum(acc_scores) / float(len(acc_scores))
 
 def main():
     parser = argparse.ArgumentParser()
@@ -243,32 +242,31 @@ def main():
 
     print '===> Finished setting up data:', time.time() - data_set_up_start_time 
 
-    model = ModelBuilder(input_shape=(252, 7, 1), 
-                         num_filters=[50, 50], 
-                         kernel_size_tuples=[(25,5), (5,3)], 
-                         pool_size=(3,1),
-                         num_hidden_units=[200, 200],
-                         dropout_rate=DROPOUT_RATE)
+    # model = ModelBuilder(input_shape=(252, 7, 1), 
+    #                      num_filters=[50, 50], 
+    #                      kernel_size_tuples=[(25,5), (5,3)], 
+    #                      pool_size=(3,1),
+    #                      num_hidden_units=[1000, 200],
+    #                      dropout_rate=0.3)
 
-    lossHistory = LossHistory()
-    metrics = Metrics()
-    checkpoint = Checkpoint()
-    sgd = SGD(lr=LEARNING_RATE, momentum=MOMENTUM_RATE)
-    print '===> Compiling the model...'
-    compile_model_start_time = time.time()
-    model.compile(optimizer=sgd, loss='binary_crossentropy', metrics=['accuracy'])
-    print '===> Finished compiling the model:', time.time() - compile_model_start_time
+    # lossHistory = LossHistory()
+    # metrics = Metrics()
+    # sgd = SGD(lr=0.0, momentum=MOMENTUM_RATE)
+    # print '===> Compiling the model...'
+    # compile_model_start_time = time.time()
+    # model.compile(optimizer=sgd, loss='binary_crossentropy', metrics=['accuracy'])
+    # print '===> Finished compiling the model:', time.time() - compile_model_start_time
 
-    model.validation_data = (X_test, Y_test)
+    # model.train_data = (X_train, Y_train)
+    # model.validation_data = (X_test, Y_test)
+    # lrate = LearningRateScheduler(step_decay_3)
+    # model.after_compile_start_time = time.time()
+    # model.fit(X_train, Y_train, validation_data=model.validation_data, epochs=NUM_EPOCHS, batch_size=BATCH_SIZE, verbose=0, callbacks=[lossHistory, metrics, lrate])
 
-    # TAKE THIS OUT!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    # X_train = X_train[:700, :,:,:]
-    # Y_train = [y[:700] for y in Y_train]
-    # print '===> ADJUSTED TRAIN DIMENSIONS:', X_train.shape, '|', len(Y_train), Y_train[0].shape  
-
-    model.after_compile_start_time = time.time()
-    model.fit(X_train, Y_train, validation_data=model.validation_data, epochs=NUM_EPOCHS, batch_size=BATCH_SIZE, verbose=0, callbacks=[lossHistory, metrics,checkpoint])
-
+    print '===> Loading model...'
+    model = load_model('model_shuffled.h5')
+    print '===> Evaluating on train data...'
+    evaluate_model(model, X_train, Y_train)
 
 if __name__ == "__main__":
     main()
